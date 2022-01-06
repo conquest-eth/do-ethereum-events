@@ -19,7 +19,7 @@ format = "modules"
 main = "./index.mjs"
 
 [durable_objects]
-bindings = [{name = "EVENT_LIST", class_name = "EventList"}]
+bindings = [{name = "EVENT_LIST", class_name = "VoidEventList"}]
 
 [triggers]
 crons = ["* * * * *"]
@@ -27,4 +27,4 @@ crons = ["* * * * *"]
 # needed for first deployment
 # [[migrations]]
 # tag = "v1"
-# new_classes = ["EventList"]
+# new_classes = ["VoidEventList"]

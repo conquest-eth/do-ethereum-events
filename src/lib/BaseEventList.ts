@@ -33,7 +33,7 @@ type EventWithId = LogEvent & {
 
 type BlockEvents = {hash: string, number: number; events: LogEvent[]};
 
-export class EventList extends DO {
+export abstract class BaseEventList extends DO {
   provider: ethers.providers.JsonRpcProvider;
   contracts: ethers.Contract[];
   finality: number;
@@ -202,4 +202,6 @@ export class EventList extends DO {
 
     return createResponse({success: true});
   }
+
+  abstract onNewEventEntries(newEventEntries: DurableObjectEntries<LogEvent>);
 }
