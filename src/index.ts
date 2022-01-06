@@ -28,6 +28,12 @@ function handleOptions(request: Request) {
   }
 }
 
+function sleep(ms): Promise<void> {
+  return new Promise((resolve) => setTimeout(() => resolve(), ms));
+}
+
+
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -47,14 +53,32 @@ export default {
     }
   },
 
-  async scheduled(trigger: CronTrigger, env: Env, event: ScheduledEvent) {
+  sleep_then_schedule(seconds: number, event, env, ctx): Promise<void> {
+    const miliseconds = 1000 * seconds;
+    const modifiedEvent = {...event};
+    modifiedEvent.scheduledTime += miliseconds;
+    return sleep(miliseconds).then(() => this._scheduled(event, env, ctx));
+  },
+
+  async _scheduled(event, env, ctx) {
     const id = env.EVENT_LIST.idFromName('A');
     const obj = env.EVENT_LIST.get(id);
-    if (trigger.cron === '* * * * *') {
-      console.log('execute...');
-      event.waitUntil(obj.fetch(`${BASE_URL}/execute`));
+    if (event.cron === '* * * * *') {
+      console.log(`processEvents at ${event.scheduledTime} ...`);
+      event.waitUntil(obj.fetch(`${BASE_URL}/processEvents`));
     }
   },
+
+  async scheduled(event, env, ctx) {
+    await Promise.all([ // every 10 seconds
+      this.sleep_then_schedule(0, event, env, ctx),
+      this.sleep_then_schedule(10, event, env, ctx),
+      this.sleep_then_schedule(20, event, env, ctx),
+      this.sleep_then_schedule(30, event, env, ctx),
+      this.sleep_then_schedule(40, event, env, ctx),
+      this.sleep_then_schedule(50, event, env, ctx),
+    ]);
+  }
 };
 
 const functions = {GET:['getEvents']};

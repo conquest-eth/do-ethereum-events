@@ -1,8 +1,8 @@
 {
   "private": true,
-  "name": "conquest-agent-service",
+  "name": "ethereum-events-worker",
   "version": "0.0.1",
-  "description": "Agent Service whose job is to broadcast reveal tx in time",
+  "description": "Event Engine For Ethereum",
   "module": "./dist/index.mjs",
   "scripts": {
     "prepare": "node .setup.cjs",

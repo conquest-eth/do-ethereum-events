@@ -19,6 +19,7 @@ export abstract class DO {
       env.DATA_DOG_API_KEY,
       'ethereum-events-worker-' + (env.ENVIRONMENT ? '-' + env.ENVIRONMENT : '')
     );
+    globalThis.logger = this;
   }
 
   info(message) {
