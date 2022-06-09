@@ -3,9 +3,8 @@ import type {Env} from './types';
 import {DO} from './DO';
 import { createResponse } from './utils';
 import {getLogEvents, LogEvent} from './ethereum/utils'
+import { State } from './types/cloudflare';
 
-// needed because of : https://github.com/cloudflare/durable-objects-typescript-rollup-esm/issues/3
-type State = DurableObjectState & {blockConcurrencyWhile: (func: () => Promise<void>) => void};
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
@@ -26,47 +25,64 @@ type LastSync = {
   nextStreamID: number;
 }
 
-type EventWithId = LogEvent & {
-  streamID: string;
+export type EventWithId = LogEvent & {
+  streamID: number;
 }
 
 
 type BlockEvents = {hash: string, number: number; events: LogEvent[]};
 
+type ContractData = {eventsABI: any[], address: string, startBlock?: number};
+
 export abstract class BaseEventList extends DO {
   provider: ethers.providers.JsonRpcProvider;
-  contracts: ethers.Contract[];
+  contractsData: ContractData[] | undefined;
+  contracts: ethers.Contract[] | undefined;
   finality: number;
 
   constructor(state: State, env: Env) {
     super(state, env);
+    console.log(`ethereum node : ${env.ETHEREUM_NODE}`);
     this.provider = new ethers.providers.JsonRpcProvider(env.ETHEREUM_NODE);
     this.finality = 12; // TODO
   }
 
-  async setup(path: string[], data: {reset?: boolean, list: {eventsABI: any[], address: string}[]}): Promise<Response> {
+  async setup(path: string[], request: Request, data: {reset?: boolean, list: ContractData[]}): Promise<Response> {
+
+    await this._setupContracts();
+
     // TODO only admin
     let reset = data.reset;
 
-    for (const contractData of data.list) {
-      if (!this.contracts.find(v => v.address.toLowerCase() === contractData.address.toLowerCase())) {
-        reset = true;
+    console.log({path, data})
+
+    if (!this.contractsData) {
+      reset = true;
+    } else {
+      for (const contractData of data.list) {
+        if (!this.contractsData.find(v => v.address.toLowerCase() === contractData.address.toLowerCase())) {
+          reset = true;
+        }
+      }
+
+      for (const contract of this.contractsData) {
+        if (!data.list.find(v => v.address.toLowerCase() === contract.address.toLowerCase())) {
+          reset = true;
+        }
       }
     }
 
-    for (const contract of this.contracts) {
-      if (!data.list.find(v => v.address.toLowerCase() === contract.address.toLowerCase())) {
-        reset = true;
-      }
-    }
 
     if (reset) {
-      this.contracts = [];
       await this.state.storage.deleteAll();
-      for (const contractData of data.list) {
-        this.contracts.push(new Contract(contractData.address, contractData.eventsABI, this.provider));
-      }
+      this.contracts = undefined;
+      this.contractsData = undefined;
     }
+
+    this.state.storage.put<ContractData[]>('_contracts_', data.list);
+
+
+    console.log({reset, numContracts: data.list.length})
 
     return createResponse({success: true, reset})
   }
@@ -103,12 +119,37 @@ export abstract class BaseEventList extends DO {
     return createResponse({events, success: true});
   }
 
+  async _setupContracts() {
+
+    if (!this.contractsData) {
+      this.contractsData = await this.state.storage.get<ContractData[]>('_contracts_');
+    }
+
+    if (!this.contracts && this.contractsData) {
+      this.contracts = [];
+      for (const contractData of this.contractsData) {
+        this.contracts.push(new Contract(contractData.address, contractData.eventsABI, this.provider));
+      }
+    }
+
+  }
+
 
   async processEvents(path: string[]): Promise<Response> {
+    await this._setupContracts();
 
     const lastSync = await this._getLastSync();
     let streamID = 0;
     let fromBlock = 0;
+    for (const contractData of this.contractsData) {
+      if (contractData.startBlock) {
+        if (fromBlock === 0) {
+          fromBlock = contractData.startBlock;
+        } else if (contractData.startBlock < fromBlock) {
+          fromBlock = contractData.startBlock;
+        }
+      }
+    }
     let unconfirmedBlocks: EventBlock[] = [];
     if (lastSync) {
       unconfirmedBlocks = lastSync.unconfirmedBlocks;
@@ -126,6 +167,8 @@ export abstract class BaseEventList extends DO {
 
     const newEvents = await getLogEvents(this.provider, this.contracts, {fromBlock, toBlock});
 
+    console.log({latestBlock, toBlock, newEvents: newEvents.length});
+
     // grouping per block...
     const groups: {[hash:string]: BlockEvents} = {};
     const eventsGroupedPerBlock: BlockEvents[] = [];
@@ -141,7 +184,8 @@ export abstract class BaseEventList extends DO {
     }
 
     // set up the new entries to be added to the stream
-    const newEventEntries: DurableObjectEntries<LogEvent> = {};
+    // const newEventEntries: DurableObjectEntries<LogEvent> = {};
+    const eventStream: EventWithId[] = [];
 
     // find reorgs
     let reorgBlock: EventBlock | undefined;
@@ -164,19 +208,23 @@ export abstract class BaseEventList extends DO {
       if (unconfirmedEventsMap) {
         for (const entry of unconfirmedEventsMap.entries()) {
           const event = entry[1];
-          newEventEntries[`${streamID++}`] = {...event, removed: true};
+          // newEventEntries[`${streamID++}`] = {...event, removed: true};
+          eventStream.push({streamID: streamID++, ...event, removed: true});
         }
       }
     }
+
+    const startingBlockForNewEvent = reorgBlock ? reorgBlock.number : unconfirmedBlocks.length > 0 ? unconfirmedBlocks[unconfirmedBlocks.length-1].number + 1 : (eventsGroupedPerBlock.length >0 ? eventsGroupedPerBlock[0].number : undefined)
 
 
     // new events and new unconfirmed blocks
     const newUnconfirmedBlocks: EventBlock[] = [];
     for(const block of eventsGroupedPerBlock) {
-      if (block.events.length > 0) {
+      if (block.events.length > 0 && block.number >= startingBlockForNewEvent) {
         const startStreamID = streamID;
         for (const event of block.events) {
-          newEventEntries[`${streamID++}`] = {...event};
+          // newEventEntries[`${streamID++}`] = {...event};
+          eventStream.push({streamID: streamID++, ...event});
         }
         if (latestBlock - block.number <= this.finality) {
           newUnconfirmedBlocks.push({
@@ -190,9 +238,23 @@ export abstract class BaseEventList extends DO {
 
     }
 
-    if (Object.keys(newEventEntries).length > 0) {
-      this.state.storage.put<LogEvent>(newEventEntries);
+
+    let entriesInGroupOf128 : DurableObjectEntries<LogEvent> = {};
+    let counter = 0;
+    for (const event of eventStream) {
+      entriesInGroupOf128[`event_${lexicographicNumber15(event.streamID)}`] = event;
+      delete event.streamID;
+      counter++;
+      if (counter == 128) {
+        this.state.storage.put<LogEvent>(entriesInGroupOf128);
+        entriesInGroupOf128 = {};
+        counter = 0;
+      }
     }
+    if (counter > 0) {
+      this.state.storage.put<LogEvent>(entriesInGroupOf128);
+    }
+
     this._putLastSync({
       latestBlock,
       lastToBlock: toBlock,
@@ -200,8 +262,10 @@ export abstract class BaseEventList extends DO {
       nextStreamID: streamID
     })
 
+    this.onEventStream(eventStream);
+
     return createResponse({success: true});
   }
 
-  abstract onNewEventEntries(newEventEntries: DurableObjectEntries<LogEvent>);
+  abstract onEventStream(eventStream: EventWithId[]);
 }

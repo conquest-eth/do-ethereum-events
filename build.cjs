@@ -10,10 +10,10 @@ require('esbuild')
   .then(() => {
     // fix ethers for cloudflare worker
     let content = fs.readFileSync('dist/index.mjs').toString();
-    content = content.replace('mode: "cors"', '//mode: "cors"');
-    content = content.replace('cache: "no-cache"', '//cache: "no-cache"');
-    content = content.replace('credentials: "same-origin"', '//credentials: "same-origin"');
-    content = content.replace('referrer: "client"', '//referrer: "client"');
+    content = content.replace('request.mode = "cors"', '//request.mode = "cors"');
+    content = content.replace('request.cache = "no-cache"', '//request.cache = "no-cache"');
+    content = content.replace('request.credentials = "same-origin"', '//request.credentials = "same-origin"');
+    content = content.replace('request.referrer = "client"', '//request.referrer = "client"');
     fs.writeFileSync('dist/index.mjs', content);
   })
   .catch(() => process.exit(1));

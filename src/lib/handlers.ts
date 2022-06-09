@@ -1,4 +1,4 @@
-import {InvalidMethod, UnknownRequestType} from './errors';
+import {handleErrors, InvalidMethod, UnknownRequestType} from './errors';
 import type {Env, CronTrigger} from './types';
 import {corsHeaders} from './utils';
 
@@ -51,7 +51,31 @@ function sleep_then_schedule(seconds: number, event, env, ctx): Promise<void> {
 }
 
 
-export const handlers = (options: {interval: number}) => {
+export const handlers = (options: {interval: number, functions: {POST: string[], GET: String[]}}) => {
+
+  async function handleRequest(request: Request, env: Env): Promise<Response> {
+
+    const id = env.EVENT_LIST.idFromName('A');
+    const obj = env.EVENT_LIST.get(id);
+
+    const functions = options.functions;
+
+
+    const url = new URL(request.url);
+    const method = request.method;
+    const path = url.pathname.substr(1).split('/');
+    const fnc = path[0];
+
+    const found = functions[method].indexOf(fnc) !== -1;
+
+    console.log({found, method});
+    if (found) {
+      let resp = await obj.fetch(url.toString(), request);
+      return resp;
+    }
+    return UnknownRequestType();
+  }
+
 
   if (options.interval > 60) {
     // TODO
@@ -64,21 +88,13 @@ export const handlers = (options: {interval: number}) => {
 
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
-      if (request.method === 'OPTIONS') {
-        return handleOptions(request);
-      }
-      try {
+      return await handleErrors(request, async () => {
+        if (request.method === 'OPTIONS') {
+          return handleOptions(request);
+        }
         const response = await handleRequest(request, env);
         return response;
-      } catch (e: unknown) {
-        // console.error('ERROR', e);
-        const message = (e as {message: string}).message;
-        if (message) {
-          return new Response(message);
-        } else {
-          return new Response(e as string);
-        }
-      }
+      });
     },
 
     async scheduled(event, env, ctx) {
@@ -92,22 +108,5 @@ export const handlers = (options: {interval: number}) => {
   }
 };
 
-const functions = {GET:['getEvents']};
 
-async function handleRequest(request: Request, env: Env): Promise<Response> {
 
-  const id = env.EVENT_LIST.idFromName('A');
-  const obj = env.EVENT_LIST.get(id);
-
-  const url = new URL(request.url);
-  const method = request.method;
-  const path = url.pathname.substr(1).split('/');
-  const fnc = path[0];
-
-  const found = functions[method].indexOf(fnc) >= 0;
-  if (found) {
-    let resp = await obj.fetch(url.toString(), request);
-    return resp;
-  }
-  return UnknownRequestType();
-}

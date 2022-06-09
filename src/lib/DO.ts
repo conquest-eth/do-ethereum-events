@@ -1,5 +1,5 @@
 import type {Env} from './types';
-import {createErrorResponse} from './errors';
+import {createErrorResponse, handleErrors} from './errors';
 import {DataDogLogger, setupLogger} from './datadog';
 
 // needed because of : https://github.com/cloudflare/durable-objects-typescript-rollup-esm/issues/3
@@ -74,42 +74,44 @@ export abstract class DO {
   }
 
   async fetch(request: Request): Promise<Response> {
-    this.currentRequest = request;
-    let url = new URL(request.url);
-    const path = url.pathname.substr(1).split('/');
-    const fnc = path[0];
-    const self = this as unknown as {
-      [funcName: string]: (path: string[], data: Object | string | number) => Promise<Response>;
-    };
-    if (self[fnc]) {
-      try {
-        let json: any | undefined;
-        if (request.method != 'GET') {
-          try {
-            json = await request.json();
-          } catch (e) {
-            json = {};
+    return await handleErrors(request, async () => {
+      this.currentRequest = request;
+      let url = new URL(request.url);
+      const path = url.pathname.substr(1).split('/');
+      const fnc = path[0];
+      const self = this as unknown as {
+        [funcName: string]: (path: string[], request: Request, data: Object | string | number) => Promise<Response>;
+      };
+      if (self[fnc]) {
+        try {
+          let json: any | undefined;
+          if (request.method != 'GET') {
+            try {
+              json = await request.json();
+            } catch (e) {
+              json = {};
+            }
           }
+          // console.log(path.slice(1), json, url, path);
+          const response = await self[fnc](path.slice(1), request, json);
+          return response;
+        } catch (e: unknown) {
+          const error = e as {message?: string};
+          let message = error.message || `Error happen while calling ${fnc}`;
+          this.error(message);
+          return createErrorResponse({code: 5555, message});
+          // console.log(message);
+          // throw e;
+          // if (error.message) {
+          //     message = error.message;
+          // } else {
+          //     message = message + '  :  ' + e;
+          // }
+          // return new Response(message, {status: 501});
         }
-        // console.log(path.slice(1), json, url, path);
-        const response = await self[fnc](path.slice(1), json);
-        return response;
-      } catch (e: unknown) {
-        const error = e as {message?: string};
-        let message = error.message || `Error happen while calling ${fnc}`;
-        this.error(message);
-        return createErrorResponse({code: 5555, message});
-        // console.log(message);
-        // throw e;
-        // if (error.message) {
-        //     message = error.message;
-        // } else {
-        //     message = message + '  :  ' + e;
-        // }
-        // return new Response(message, {status: 501});
+      } else {
+        return new Response('Not found', {status: 404});
       }
-    } else {
-      return new Response('Not found', {status: 404});
-    }
+    });
   }
 }
