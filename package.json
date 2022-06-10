@@ -1,6 +1,5 @@
 {
-  "private": true,
-  "name": "ethereum-events-worker",
+  "name": "@helios138/ethereum-events-worker",
   "version": "0.0.1",
   "description": "Event Engine For Ethereum",
   "module": "./dist/index.mjs",
@@ -33,8 +32,16 @@
     "tslib": "^2.2.0",
     "typescript": "^4.2.4"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "dependencies": {
     "ethers": "^5.4.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conquest-eth/ethereum-events-worker"
   },
   "volta": {
     "node": "16.13.1"
