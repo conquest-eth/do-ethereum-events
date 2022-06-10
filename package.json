@@ -1,5 +1,5 @@
 {
-  "name": "@helios138/ethereum-events-worker",
+  "name": "ethereum-events-worker",
   "version": "0.0.1",
   "description": "Event Engine For Ethereum",
   "module": "./dist/index.mjs",
