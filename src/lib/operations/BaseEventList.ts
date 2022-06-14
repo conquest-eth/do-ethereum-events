@@ -1,116 +1,64 @@
-import { BigNumber, Contract, ethers, Wallet, utils } from 'ethers'
-import { ContractData } from '../entities'
+import { Contract, ethers } from 'ethers'
+import { ajv, Logger, LogLevel } from '../../utils'
+import {
+  ContractData,
+  ContractDataSchema,
+  BlockEvents,
+  EventWithId,
+  EventBlock,
+} from '../entities'
+import { getLogEvents } from '../helpers'
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0')
 }
 
-export abstract class BaseEventList {
+const DEFAULT_CONFIRMATIONS = 12
+const DEFAULT_MAX_BLOCK_RANGE = 10000
+
+export abstract class BaseEventListener {
+  logger: Logger
   provider: ethers.providers.JsonRpcProvider
-  contractsData: ContractData[] | undefined
-  contracts: Contract[] | undefined
-  finality: number
+  contractsData: ContractData[] = []
+  contracts: Contract[] = []
+  confirmations: number
+  maxBlockRange: number
+  unconfirmedBlocks: EventBlock[] = []
 
-  constructor(rpcEndpoint: string) {
-    this.provider = new ethers.providers.JsonRpcProvider(rpcEndpoint)
-    this.finality = 12 // TODO
-  }
-
-  async setup(
-    path: string[],
-    request: Request,
-    data: { reset?: boolean; list: ContractData[] },
-  ): Promise<Response> {
-    await this._setupContracts()
-
-    // TODO only admin
-    let reset = data.reset
-
-    console.log({ path, data })
-
-    if (!this.contractsData) {
-      reset = true
-    } else {
-      for (const contractData of data.list) {
-        if (
-          !this.contractsData.find(
-            (v) =>
-              v.address.toLowerCase() === contractData.address.toLowerCase(),
-          )
-        ) {
-          reset = true
-        }
-      }
-
-      for (const contract of this.contractsData) {
-        if (
-          !data.list.find(
-            (v) => v.address.toLowerCase() === contract.address.toLowerCase(),
-          )
-        ) {
-          reset = true
-        }
-      }
-    }
-
-    if (reset) {
-      await this.state.storage.deleteAll()
-      this.contracts = undefined
-      this.contractsData = undefined
-    }
-
-    this.state.storage.put<ContractData[]>('_contracts_', data.list)
-
-    console.log({ reset, numContracts: data.list.length })
-
-    return createResponse({ success: true, reset })
-  }
-
-  _getEventsMap(
-    start: number,
-    limit: number,
-  ): Promise<Map<string, LogEvent> | undefined> {
-    return this.state.storage.list<LogEvent>({
-      start: `event_${lexicographicNumber15(start)}`,
-      limit,
+  constructor(
+    rpcEndpoint: string,
+    logLevel?: LogLevel,
+    confirmations?: number,
+    maxBlockRange?: number,
+  ) {
+    this.logger = new Logger({
+      level: logLevel ?? 'info',
+      name: BaseEventListener.name,
     })
+    this.provider = new ethers.providers.JsonRpcProvider(rpcEndpoint)
+    this.confirmations = confirmations ?? DEFAULT_CONFIRMATIONS
+    this.maxBlockRange = maxBlockRange ?? DEFAULT_MAX_BLOCK_RANGE
   }
 
-  _getLastSync(): Promise<LastSync | undefined> {
-    return this.state.storage.get<LastSync>(`_sync_`)
-  }
-
-  async _putLastSync(lastSync: LastSync): Promise<void> {
-    await this.state.storage.put<LastSync>(`_sync_`, lastSync)
-  }
-
-  async getEvents(path: string[]): Promise<Response> {
-    const start = parseInt(path[0])
-    const limit = parseInt(path[1])
-
-    const eventsMap = await this._getEventsMap(start, limit)
-    const events = []
-    if (eventsMap) {
-      for (const entry of eventsMap.entries()) {
-        const eventID = entry[0]
-        const event = entry[1]
-        events.push({ streamID: parseInt(eventID.slice(6)), ...event })
+  public setup(contractsData: ContractData[], reset = false): boolean {
+    try {
+      if (reset) {
+        this.contracts = []
+        this.contractsData = []
       }
-    }
 
-    return createResponse({ events, success: true })
-  }
+      for (const contractData of contractsData) {
+        const validate = ajv.compile(ContractDataSchema)
+        const valid = validate(contractData)
+        if (!valid) {
+          throw new Error(
+            validate.errors
+              ?.map((err: unknown) => JSON.stringify(err, null, 2))
+              .join(','),
+          )
+        }
 
-  async _setupContracts() {
-    if (!this.contractsData) {
-      this.contractsData = await this.state.storage.get<ContractData[]>(
-        '_contracts_',
-      )
-    }
-
-    if (!this.contracts && this.contractsData) {
-      this.contracts = []
-      for (const contractData of this.contractsData) {
+        this.contractsData.push(contractData)
         this.contracts.push(
           new Contract(
             contractData.address,
@@ -119,47 +67,46 @@ export abstract class BaseEventList {
           ),
         )
       }
+
+      return true
+    } catch (e: unknown) {
+      this.logger.error('Setup contracts failed!', {
+        reset,
+        contracts: contractsData.map(
+          (contract) => (contract.address, contract.startBlock),
+        ),
+        error: e,
+      })
+      return false
     }
   }
 
-  async processEvents(path: string[]): Promise<Response> {
-    await this._setupContracts()
-
-    const lastSync = await this._getLastSync()
+  async processEvents(
+    fromBlock: number,
+    numberOfBlocks?: number,
+  ): Promise<Response> {
     let streamID = 0
-    let fromBlock = 0
+    let startBlock = 0
     for (const contractData of this.contractsData) {
       if (contractData.startBlock) {
         if (fromBlock === 0) {
-          fromBlock = contractData.startBlock
+          startBlock = contractData.startBlock
         } else if (contractData.startBlock < fromBlock) {
-          fromBlock = contractData.startBlock
+          startBlock = contractData.startBlock
         }
       }
     }
-    let unconfirmedBlocks: EventBlock[] = []
-    if (lastSync) {
-      unconfirmedBlocks = lastSync.unconfirmedBlocks
-      streamID = lastSync.nextStreamID
-      if (unconfirmedBlocks.length > 0) {
-        fromBlock = lastSync.unconfirmedBlocks[0].number
-      } else {
-        fromBlock = lastSync.lastToBlock + 1
-      }
-    }
 
+    this.logger.info(`Fetching the events...`, { fromBlock, startBlock })
     const latestBlock = await this.provider.getBlockNumber()
-
-    const toBlock = Math.min(latestBlock, fromBlock + 10000) // TODO Config: 10,000 max block range
-
+    const toBlock = Math.min(latestBlock, fromBlock + this.maxBlockRange)
     const newEvents = await getLogEvents(this.provider, this.contracts, {
-      fromBlock,
+      fromBlock: startBlock,
       toBlock,
     })
+    this.logger.debug(`Fetching new events done`, { length: newEvents.length })
 
-    console.log({ latestBlock, toBlock, newEvents: newEvents.length })
-
-    // grouping per block...
+    // Grouping the blocks
     const groups: { [hash: string]: BlockEvents } = {}
     const eventsGroupedPerBlock: BlockEvents[] = []
     for (const event of newEvents) {
@@ -183,8 +130,8 @@ export abstract class BaseEventList {
     let reorgBlock: EventBlock | undefined
     let currentIndex = 0
     for (const block of eventsGroupedPerBlock) {
-      if (currentIndex < unconfirmedBlocks.length) {
-        const unconfirmedBlockAtIndex = unconfirmedBlocks[currentIndex]
+      if (currentIndex < this.unconfirmedBlocks.length) {
+        const unconfirmedBlockAtIndex = this.unconfirmedBlocks[currentIndex]
         if (unconfirmedBlockAtIndex.hash !== block.hash) {
           reorgBlock = unconfirmedBlockAtIndex
           break
@@ -196,15 +143,14 @@ export abstract class BaseEventList {
     if (reorgBlock) {
       // re-add event to the stream but flag them as removed
       const lastUnconfirmedBlock =
-        unconfirmedBlocks[unconfirmedBlocks.length - 1]
+        this.unconfirmedBlocks[this.unconfirmedBlocks.length - 1]
       const unconfirmedEventsMap = await this._getEventsMap(
-        reorgBlock.startStreamID,
-        lastUnconfirmedBlock.startStreamID + lastUnconfirmedBlock.numEvents,
+        reorgBlock.startStreamId,
+        lastUnconfirmedBlock.startStreamId + lastUnconfirmedBlock.numEvents,
       )
       if (unconfirmedEventsMap) {
         for (const entry of unconfirmedEventsMap.entries()) {
           const event = entry[1]
-          // newEventEntries[`${streamID++}`] = {...event, removed: true};
           eventStream.push({ streamID: streamID++, ...event, removed: true })
         }
       }
@@ -227,7 +173,7 @@ export abstract class BaseEventList {
           // newEventEntries[`${streamID++}`] = {...event};
           eventStream.push({ streamID: streamID++, ...event })
         }
-        if (latestBlock - block.number <= this.finality) {
+        if (latestBlock - block.number <= this.confirmations) {
           newUnconfirmedBlocks.push({
             hash: block.hash,
             number: block.number,
