@@ -42,7 +42,7 @@
     "prepare": "node .setup.cjs",
     "build:js": "node build.js",
     "build": "npm-run-all \"generate -- {1}\" \"build:js\" --",
-    "format": "prettier --write '**/*.{js,css,json,md}'",
+    "format": "prettier --write '**/*.{js,ts,cjs,mjs,css,json,md}'",
     "generate": "node generate.cjs",
     "deploy:wrangler": "wrangler publish",
     "deploy": "npm-run-all \"generate -- {1}\" \"deploy:wrangler\" --",

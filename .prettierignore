@@ -1,1 +1,5 @@
 *.hbs
+dist/
+node_modules/
+.vscode/
+package.json

@@ -1,11 +1,23 @@
-export function setupLogger(apiKey: string, application: string): DataDogLogger {
+export function setupLogger(
+  apiKey: string,
+  application: string,
+): DataDogLogger {
   return new DataDogLogger(apiKey, application, [application]);
 }
 
 export class DataDogLogger {
-  constructor(protected apiKey: string, protected application: string, protected tags: string[] = []) {}
+  constructor(
+    protected apiKey: string,
+    protected application: string,
+    protected tags: string[] = [],
+  ) {}
 
-  async log(request: Request, message: any, status: 'error' | 'warn' | 'info', extra: any = {}) {
+  async log(
+    request: Request,
+    message: any,
+    status: 'error' | 'warn' | 'info',
+    extra: any = {},
+  ) {
     const source = 'nodejs';
     let dd_logsEndpoint = `https://http-intake.logs.datadoghq.eu/api/v2/logs`;
 
@@ -29,7 +41,11 @@ export class DataDogLogger {
           useragent: request.headers.get('user-agent'),
         },
         network: {
-          client: {geoip: {country: {iso_code: request.headers.get('Cf-Ipcountry')}}},
+          client: {
+            geoip: {
+              country: { iso_code: request.headers.get('Cf-Ipcountry') },
+            },
+          },
         },
         cloudflare: {
           ray: request.headers.get('cf-ray') || '',

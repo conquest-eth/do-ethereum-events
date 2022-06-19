@@ -1,4 +1,4 @@
-import 'isomorphic-fetch'
+import 'isomorphic-fetch';
 
 async function main() {
   await fetch('http://localhost:8787/setup', {
@@ -1162,7 +1162,7 @@ async function main() {
         },
       ],
     }),
-  })
+  });
 }
 
-main()
+main();

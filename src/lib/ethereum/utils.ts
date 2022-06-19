@@ -1,35 +1,35 @@
-import { BigNumber, Contract, providers, utils } from 'ethers'
-import { deepCopy, LogDescription } from 'ethers/lib/utils'
+import { BigNumber, Contract, providers, utils } from 'ethers';
+import { deepCopy, LogDescription } from 'ethers/lib/utils';
 
 // import {Log} from '@ethersproject/abstract-provider';
 interface Log {
-  blockNumber: number
-  blockHash: string
-  transactionIndex: number
+  blockNumber: number;
+  blockHash: string;
+  transactionIndex: number;
 
-  removed: boolean
+  removed: boolean;
 
-  address: string
-  data: string
+  address: string;
+  data: string;
 
-  topics: Array<string>
+  topics: Array<string>;
 
-  transactionHash: string
-  logIndex: number
+  transactionHash: string;
+  logIndex: number;
 }
 
 export interface LogEvent extends Log {
-  event?: string
+  event?: string;
   // The event signature
-  eventSignature?: string
+  eventSignature?: string;
   // The parsed arguments to the event
-  args?: Result
+  args?: Result;
   // If parsing the arguments failed, this is the error
-  decodeError?: Error
+  decodeError?: Error;
 }
 
 interface Result extends ReadonlyArray<any> {
-  readonly [key: string]: any
+  readonly [key: string]: any;
 }
 
 export async function getLogEvents(
@@ -37,7 +37,7 @@ export async function getLogEvents(
   contracts: Contract[],
   options: { fromBlock: number; toBlock: number },
 ): Promise<LogEvent[]> {
-  const events: LogEvent[] = []
+  const events: LogEvent[] = [];
   const logs: Log[] = await provider.send('eth_getLogs', [
     {
       address: contracts.map((v) => v.address),
@@ -50,34 +50,34 @@ export async function getLogEvents(
       //     ],
       //   ],
     },
-  ])
+  ]);
 
   for (let i = 0; i < logs.length; i++) {
-    const log = logs[i]
-    const eventAddress = utils.getAddress(log.address)
+    const log = logs[i];
+    const eventAddress = utils.getAddress(log.address);
     const correspondingContract = contracts.find(
       (v) => v.address === eventAddress,
-    )
+    );
     if (correspondingContract) {
-      let event: LogEvent = <LogEvent>deepCopy(log)
-      let parsed: LogDescription | null = null
+      let event: LogEvent = <LogEvent>deepCopy(log);
+      let parsed: LogDescription | null = null;
       try {
-        parsed = correspondingContract.interface.parseLog(log)
+        parsed = correspondingContract.interface.parseLog(log);
       } catch (e) {}
 
       // Successfully parsed the event log; include it
       if (parsed) {
-        event.args = parsed.args
-        event.event = parsed.name
-        event.eventSignature = parsed.signature
+        event.args = parsed.args;
+        event.event = parsed.name;
+        event.eventSignature = parsed.signature;
       }
 
-      events.push(event)
+      events.push(event);
     } else {
       // TODO typing
-      ;(globalThis as any).logger &&
-        (globalThis as any).logger.error(`unknown contract: ${eventAddress}`)
+      (globalThis as any).logger &&
+        (globalThis as any).logger.error(`unknown contract: ${eventAddress}`);
     }
   }
-  return events
+  return events;
 }
