@@ -2,42 +2,34 @@
   "name": "ethereum-events-worker",
   "version": "0.0.1",
   "description": "Event Engine For Ethereum",
+  "private": true,
+  "type": "module",
   "module": "./dist/index.mjs",
-  "scripts": {
-    "ts-node": "ts-node",
-    "prepare": "node .setup.cjs",
-    "build:cjs": "node build.cjs",
-    "build": "npm-run-all \"generate -- {1}\" \"build:cjs\" --",
-    "format": "prettier --write '**/*.{js,css,json,md}'",
-    "generate": "node generate.cjs",
-    "deploy:wrangler": "wrangler publish",
-    "deploy": "npm-run-all \"generate -- {1}\" \"deploy:wrangler\" --",
-    "dev": "npm-run-all \"generate -- {1}\" \"dev:flare\" --",
-    "dev:flare": "miniflare --watch --debug",
-    "manual-test": "esbuild test/manual.ts --outfile=dist/manual.mjs && node dist/manual.mjs"
-  },
   "author": "wighawag <wighawag@gmail.com>",
   "devDependencies": {
-    "@cloudflare/workers-types": "^3.3.0",
-    "@cloudflare/wrangler": "^1.19.7",
+    "@cloudflare/workers-types": "^3.11.0",
+    "@types/jest": "^27.5.1",
     "cross-env": "^7.0.3",
-    "esbuild": "^0.14.10",
+    "esbuild": "^0.14.41",
     "fs-extra": "^10.0.0",
     "handlebars": "^4.7.7",
     "isomorphic-fetch": "^3.0.0",
-    "miniflare": "^2.0.0-rc.5",
+    "jest": "^28.1.0",
+    "jest-environment-miniflare": "^2.5.0",
+    "miniflare": "^2.5.0",
     "npm-run-all": "^4.1.5",
-    "prettier": "^2.5.1",
-    "ts-node": "^10.4.0",
-    "tslib": "^2.2.0",
-    "typescript": "^4.2.4"
+    "prettier": "^2.6.2",
+    "ts-node": "^10.8.1",
+    "ts-jest": "^28.0.3",
+    "typescript": "^4.7.2",
+    "wrangler": "^2.0.7"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "dependencies": {
-    "ethers": "^5.4.4"
+    "ethers": "^5.6.9"
   },
   "repository": {
     "type": "git",
@@ -45,5 +37,19 @@
   },
   "volta": {
     "node": "16.13.1"
+  },
+  "scripts": {
+    "prepare": "node .setup.cjs",
+    "build:js": "node build.js",
+    "build": "npm-run-all \"generate -- {1}\" \"build:js\" --",
+    "format": "prettier --write '**/*.{js,css,json,md}'",
+    "generate": "node generate.cjs",
+    "deploy:wrangler": "wrangler publish",
+    "deploy": "npm-run-all \"generate -- {1}\" \"deploy:wrangler\" --",
+    "dev:flare": "miniflare --kv FILES --kv ACCESS_TOKENS --kv ACCOUNTS --live-reload --debug --modules dist/index.mjs",
+    "dev": "npm-run-all \"generate -- {1}\" \"dev:flare\" --",
+    "test": "npm run build && node --experimental-vm-modules --no-warnings node_modules/jest/bin/jest.js",
+    "types:check": "tsc && tsc -p test/tsconfig.json",
+    "manual-test": "esbuild test/manual.ts --outfile=dist/manual.mjs && node dist/manual.mjs"
   }
 }

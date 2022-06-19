@@ -1,8 +1,11 @@
-export type Env = {
+interface Env {
   EVENT_LIST: DurableObjectNamespace
   ENVIRONMENT: string
   ETHEREUM_NODE: string
   DATA_DOG_API_KEY: string
 }
 
-export type CronTrigger = { cron: string; scheduledTime: number }
+interface CronTrigger {
+  cron: string
+  scheduledTime: number
+}

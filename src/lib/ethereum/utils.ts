@@ -40,7 +40,7 @@ export async function getLogEvents(
   const events: LogEvent[] = []
   const logs: Log[] = await provider.send('eth_getLogs', [
     {
-      address: contracts.map(v => v.address),
+      address: contracts.map((v) => v.address),
       fromBlock: BigNumber.from(options.fromBlock).toHexString(),
       toBlock: BigNumber.from(options.toBlock).toHexString(),
       //   topics: [
@@ -56,11 +56,11 @@ export async function getLogEvents(
     const log = logs[i]
     const eventAddress = utils.getAddress(log.address)
     const correspondingContract = contracts.find(
-      v => v.address === eventAddress,
+      (v) => v.address === eventAddress,
     )
     if (correspondingContract) {
       let event: LogEvent = <LogEvent>deepCopy(log)
-      let parsed: LogDescription = null
+      let parsed: LogDescription | null = null
       try {
         parsed = correspondingContract.interface.parseLog(log)
       } catch (e) {}
@@ -74,8 +74,9 @@ export async function getLogEvents(
 
       events.push(event)
     } else {
-      globalThis.logger &&
-        globalThis.logger.error(`unknown contract: ${eventAddress}`)
+      // TODO typing
+      ;(globalThis as any).logger &&
+        (globalThis as any).logger.error(`unknown contract: ${eventAddress}`)
     }
   }
   return events

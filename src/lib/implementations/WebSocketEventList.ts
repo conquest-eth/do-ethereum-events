@@ -1,12 +1,11 @@
+import { Event } from 'ethers'
 import { BaseEventList, EventWithId } from '../BaseEventList'
 import { LogEvent } from '../ethereum/utils'
-import { Env } from '../types'
-import { State } from '../types/cloudflare'
 
 export class WebSocketEventList extends BaseEventList {
   sessions: any[] = []
 
-  constructor(state: State, env: Env) {
+  constructor(state: DurableObjectState, env: Env) {
     super(state, env)
   }
 
@@ -14,7 +13,7 @@ export class WebSocketEventList extends BaseEventList {
     const message = JSON.stringify(eventStream)
 
     // Iterate over all the sessions sending them messages.
-    this.sessions = this.sessions.filter(session => {
+    this.sessions = this.sessions.filter((session) => {
       try {
         session.webSocket.send(message)
         return true
@@ -53,7 +52,7 @@ export class WebSocketEventList extends BaseEventList {
   }
 
   // handleSession() implements our WebSocket-based chat protocol.
-  async _handleSession(server, ip) {
+  async _handleSession(server: WebSocket, ip: string | null) {
     console.log(`handling session from ${ip}`)
 
     // Accept our end of the WebSocket. This tells the runtime that we'll be terminating the
@@ -71,9 +70,9 @@ export class WebSocketEventList extends BaseEventList {
 
     // On "close" and "error" events, remove the WebSocket from the sessions list and broadcast
     // a quit message.
-    let closeOrErrorHandler = evt => {
+    let closeOrErrorHandler = (evt: CloseEvent | ErrorEvent) => {
       console.error(`closing because of`, evt)
-      this.sessions = this.sessions.filter(member => member !== session)
+      this.sessions = this.sessions.filter((member) => member !== session)
     }
     server.addEventListener('close', closeOrErrorHandler)
     server.addEventListener('error', closeOrErrorHandler)

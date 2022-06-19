@@ -1,30 +1,37 @@
 name = "ethereum-events-worker-{{environment}}"
-type = "javascript"
+
+main = "dist/index.mjs"
+compatibility_date = "2022-05-28"
 account_id = ""
 workers_dev = {{devMode}}
-route = ""
-zone_id = ""
-compatibility_date = "2021-09-21"
+
 usage_model= "bundled"
+
+# TODO investigate why ethers node version is used
+node_compat = true
+
+[build]
+command = "node build.js"
+
+[triggers]
+crons = ["* * * * *"]
 
 [vars]
 ENVIRONMENT = "{{environment}}"
 ETHEREUM_NODE = "{{ETHEREUM_NODE}}"
 DATA_DOG_API_KEY = "{{DATA_DOG_API_KEY}}"
 
-[build]
-command = "npm run build:cjs"
-[build.upload]
-format = "modules"
-main = "./index.mjs"
 
 [durable_objects]
 bindings = [{name = "EVENT_LIST", class_name = "EventList"}]
 
-[triggers]
-crons = ["* * * * *"]
 
-# needed for first deployment
-# [[migrations]]
-# tag = "v1"
-# new_classes = ["EventList"]
+[[migrations]]
+tag = "v1"
+new_classes = ["EventList"]
+
+[miniflare]
+kv_persist = true
+cache_persist = true
+# durable_objects_persist = true
+

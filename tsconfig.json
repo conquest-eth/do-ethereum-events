@@ -1,10 +1,17 @@
 {
   "compilerOptions": {
-    "noEmit": true,
-    "experimentalDecorators": true,
-    "lib": ["esnext", "webworker"],
+    "target": "esnext",
+    "module": "esnext",
+    "lib": ["esnext"],
     "types": ["@cloudflare/workers-types"],
-    "resolveJsonModule": true,
-    "downlevelIteration": true
-  }
+    "moduleResolution": "node",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*", "env.d.ts"]
 }
