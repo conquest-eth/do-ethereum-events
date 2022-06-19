@@ -74,6 +74,9 @@ export const handlers = (options: {
 
     const url = new URL(request.url);
     const method = request.method;
+    if (url.pathname === '/') {
+      return new Response('hello');
+    }
     const path = url.pathname.substr(1).split('/');
     const fnc = path[0];
 
