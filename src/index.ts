@@ -9,11 +9,15 @@ export async function handleRequest(
   return workerHandlers.fetch(request, env, ctx);
 }
 
-const worker: ExportedHandler<Env> = { fetch: handleRequest };
+const worker: ExportedHandler<Env> = {
+  fetch: handleRequest,
+  scheduled: workerHandlers.scheduled,
+};
 
 // export { VoidEthereumEventsDO as EthereumEventsDO} from './lib/implementations/VoidEthereumEventsDO'
 export { WebSocketEthereumEventsDO as EthereumEventsDO } from './implementations/WebSocketEthereumEventsDO';
-EthereumEventsDO.alarm = { interval: 6 };
+// EthereumEventsDO.alarm = { interval: 6 };
+EthereumEventsDO.alarm = null;
 
 // export worker
 export default worker;

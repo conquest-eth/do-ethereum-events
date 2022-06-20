@@ -24,4 +24,14 @@ export default {
       return new Response((err as any).toString());
     }
   },
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ) {
+    await fetchGlobalDO(
+      env.ETHEREUM_EVENTS,
+      new Request('http://localhost/process'),
+    );
+  },
 };

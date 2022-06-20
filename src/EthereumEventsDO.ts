@@ -134,12 +134,15 @@ export abstract class EthereumEventsDO {
       );
       // 60 is the minimum cron interval
       await this._execute_multiple_process(
+        this.processes,
         60,
         EthereumEventsDO.scheduled.interval,
       );
     } else {
       await this._execute_one_process();
     }
+
+    return new Response(`processed`);
   }
 
   processing = false;
@@ -153,6 +156,7 @@ export abstract class EthereumEventsDO {
       await this._setupContracts();
 
       if (!this.contractsData || !this.contracts) {
+        this.processing = false;
         return new Response('Not Ready');
       }
 
@@ -185,9 +189,11 @@ export abstract class EthereumEventsDO {
 
       if (fromBlock > toBlock) {
         console.log(`no new block yet, skip`);
+        this.processing = false;
         return new Response('no new block yet, skip');
       }
 
+      console.log(`fetching...`);
       const { events: newEvents, toBlock: newToBlock } = await getLogEvents(
         this.provider,
         this.contracts,
@@ -318,9 +324,11 @@ export abstract class EthereumEventsDO {
 
       this.onEventStream(eventStream);
 
-      return createJSONResponse({ success: true });
-    } finally {
       this.processing = false;
+      return createJSONResponse({ success: true });
+    } catch (e) {
+      this.processing = false;
+      return new Response(e as any);
     }
   }
 
@@ -371,12 +379,13 @@ export abstract class EthereumEventsDO {
       case 'setup':
         return this.setup(json as ContractSetup);
       case 'process':
-        return this.processEvents();
+        return this.process();
       case 'list':
       case 'events':
         const params = parseGETParams(request.url);
         return this.getEvents(params);
       default: {
+        console.log({ patharray, pathname: new URL(request.url).pathname });
         return new Response('Not found', { status: 404 });
       }
     }
@@ -400,6 +409,7 @@ export abstract class EthereumEventsDO {
         console.log(`multiple processes : ${EthereumEventsDO.alarm.interval}`);
         // 30 is the minimum alarm interval
         await this._execute_multiple_process(
+          this.alarmProcesses,
           30,
           EthereumEventsDO.alarm.interval,
         );
@@ -426,16 +436,20 @@ export abstract class EthereumEventsDO {
     return response;
   }
 
-  async _execute_multiple_process(duration: number, interval: number) {
+  async _execute_multiple_process(
+    processes: TimeoutPromise<Response>[],
+    duration: number,
+    interval: number,
+  ) {
     for (let delay = 0; delay <= duration - interval; delay += interval) {
-      this.alarmProcesses.push(
+      processes.push(
         sleep_then_execute(delay, () => this._execute_one_process()),
       );
     }
 
     let response: Response;
     try {
-      await Promise.all(this.alarmProcesses);
+      await Promise.all(processes);
       response = new Response('OK');
     } catch (err) {
       console.error(err);

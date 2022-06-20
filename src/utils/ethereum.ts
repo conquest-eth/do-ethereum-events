@@ -45,6 +45,13 @@ interface Result extends ReadonlyArray<any> {
   readonly [key: string]: any;
 }
 
+// TODO class
+// that on failure, divide by 2
+// and on success, increase/decrease to match 80% of 10,000 events (percentage and number of max event configurable)
+// support alchemy retry
+// support x retry
+// start at x events (low cap ?)
+// if zero event, double the query range ? up to a max ?worki
 export async function getLogEvents(
   provider: providers.JsonRpcProvider,
   contracts: Contract[],
