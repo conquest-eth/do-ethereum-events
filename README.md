@@ -1,4 +1,4 @@
-# An ethereum event stream
+# An ethereum event stream based on cloudflare worker and durable object
 
 ## Use
 
@@ -25,6 +25,7 @@ export class MyEthereumEventsDO extends EthereumEventsDO {
   // optionaly you can add more endpoint, like a normal DO
   async fetch(request: Request) {
     ...
+    super.fetch(request);
   }
 
 }
@@ -80,6 +81,19 @@ for example:
 bindings = [{name = "ETHEREUM_EVENTS", class_name = "EthereumEventsDO"}]
 ...
 ```
+
+### frequency of updates
+
+By default the DO use cloudflare worker alarm and these are called every 30s at max.
+To disable the alarm : `EthereumEventsDO.alarm = null;`
+To set a specific interval that the DO will try to perform : `EthereumEventsDO.alarm = { interval: 6 };`
+
+If you disable the alarm, the events won't be processed. the DO also expose a `process` endpoint and you can call it in a worker CRON handler instead
+CRON have a resolution of 1 minite so you ll need to also call it several time
+
+The DO can do that for your automatically via : `EthereumEventsDO.scheduled = {interval: 6}`
+
+You could also trigger it externaly. Technically it is idemptotent so there should be no need to protect it behind authentication even
 
 ## Development
 

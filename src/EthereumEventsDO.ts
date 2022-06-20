@@ -37,7 +37,7 @@ type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
 
 export abstract class EthereumEventsDO {
   static alarm: { interval?: number } | null = {};
-  static scheduled: { interval: number } = { interval: 6 };
+  static scheduled: { interval: number } = { interval: 0 };
 
   provider: ethers.providers.JsonRpcProvider;
   contractsData: ContractData[] | undefined;
