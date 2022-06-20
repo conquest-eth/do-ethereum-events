@@ -10,20 +10,13 @@ export default {
       return handleOptions(request);
     }
     try {
-      const { patharray, firstPath } = pathFromURL(request.url);
-      switch (firstPath) {
+      const { patharray } = pathFromURL(request.url);
+      switch (patharray[0]) {
         case '':
           // TODO debug UI onoy, main site would be a static website served elsewhere
           return new Response('hello');
         case 'events':
-          switch (patharray[1]) {
-            case 'setup':
-              return fetchGlobalDO(env.EVENT_LIST, request, 'setup');
-            case 'list':
-              return fetchGlobalDO(env.EVENT_LIST, request, 'getEvents');
-            case 'websocket':
-              return fetchGlobalDO(env.EVENT_LIST, request, 'websocket');
-          }
+          return fetchGlobalDO(env.EVENT_LIST, request);
         default:
           return new Response('Not found', { status: 404 });
       }

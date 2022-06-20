@@ -51,8 +51,8 @@ export class WebSocketEventList extends BaseEventList {
   }
 
   async fetch(request: Request) {
-    const { firstPath } = pathFromURL(request.url);
-    switch (firstPath) {
+    const { patharray } = pathFromURL(request.url);
+    switch (patharray[patharray.length - 1]) {
       case 'websocket': {
         return this.websocket(request);
       }

@@ -1,6 +1,10 @@
 import { Contract, ethers } from 'ethers';
 import { getLogEvents, LogEvent } from './utils/ethereum';
-import { createJSONResponse, pathFromURL } from './utils/request';
+import {
+  createJSONResponse,
+  parseGETParams,
+  pathFromURL,
+} from './utils/request';
 import { SECONDS, sleep_then_execute } from './utils/time';
 
 function lexicographicNumber15(num: number): string {
@@ -246,10 +250,19 @@ export abstract class BaseEventList {
     return createJSONResponse({ success: true });
   }
 
-  async getEvents(path: string[]): Promise<Response> {
-    const start = parseInt(path[1]);
-    const limit = parseInt(path[2]);
-
+  async getEvents({
+    start,
+    limit,
+  }: {
+    start?: number;
+    limit?: number;
+  }): Promise<Response> {
+    if (!start) {
+      start = 0;
+    }
+    if (!limit) {
+      limit = 1000; // TODO ?
+    }
     const eventsMap = await this._getEventsMap(start, limit);
     const events = [];
     if (eventsMap) {
@@ -270,7 +283,7 @@ export abstract class BaseEventList {
   // --------------------------------------------------------------------------
 
   async fetch(request: Request) {
-    const { patharray, firstPath } = pathFromURL(request.url);
+    const { patharray } = pathFromURL(request.url);
     let json;
     if (request.method == 'POST' || request.method == 'PUT') {
       try {
@@ -279,13 +292,14 @@ export abstract class BaseEventList {
         json = undefined;
       }
     }
-    switch (firstPath) {
-      case 'setup': {
+    // take the last path so that user can choose their prefix
+    switch (patharray[patharray.length - 1]) {
+      case 'setup':
         return this.setup(json as ContractSetup);
-      }
-      case 'events': {
-        return this.getEvents(patharray);
-      }
+      case 'list':
+      case 'events':
+        const params = parseGETParams(request.url);
+        return this.getEvents(params);
       default: {
         return new Response('Not found', { status: 404 });
       }

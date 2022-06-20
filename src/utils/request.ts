@@ -59,6 +59,23 @@ export function pathFromURL(urlAsString: string) {
   const patharray = pathname
     .slice(1, pathname.endsWith('/') ? pathname.length - 1 : undefined)
     .split('/');
-  const firstPath = patharray[0] || '';
-  return { url, pathname, patharray, firstPath };
+  return { url, pathname, patharray };
+}
+
+export function parseGETParams(urlAsString: string): {
+  [key: string]: number | string;
+} {
+  const { searchParams } = new URL(urlAsString);
+  const params = Array.from(searchParams.entries()).reduce(
+    (prev: { [key: string]: string | number }, curr) => {
+      let value: string | number = parseInt(curr[1]);
+      if (isNaN(value)) {
+        value = curr[1];
+      }
+      prev[curr[0]] = value;
+      return prev;
+    },
+    {},
+  );
+  return params;
 }
