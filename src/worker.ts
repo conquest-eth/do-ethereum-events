@@ -1,8 +1,17 @@
 import { EthereumEventsDO } from './EthereumEventsDO';
 import workerHandlers from './handlers';
 
+// export for tests
+export async function handleRequest(
+  request: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+) {
+  return workerHandlers.fetch(request, env, ctx);
+}
+
 const worker: ExportedHandler<Env> = {
-  fetch: workerHandlers.fetch,
+  fetch: handleRequest,
   scheduled: workerHandlers.scheduled,
 };
 

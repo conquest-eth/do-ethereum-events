@@ -4,13 +4,13 @@
 
 ### install
 
-`npm i ethereum-event-do`
+`npm i ethereum-events-do`
 
 ### extend EthereumEventsDO and implement `onEventStream`
 
 ```typescript
 /// MyEthereumEventsDO.ts
-import { EthereumEventsDO, EventWithId } from 'ethereum-event-do';
+import { EthereumEventsDO, EventWithId } from 'ethereum-events-do';
 
 export class MyEthereumEventsDO extends EthereumEventsDO {
 
