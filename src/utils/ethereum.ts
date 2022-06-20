@@ -238,7 +238,7 @@ export class LogEventFetcher extends LogFetcher {
       const log = logs[i];
       const eventAddress = utils.getAddress(log.address);
       const correspondingContract = this.contracts.find(
-        (v) => v.address === eventAddress,
+        (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
       );
       if (correspondingContract) {
         let event: LogEvent = <LogEvent>deepCopy(log);
@@ -256,6 +256,7 @@ export class LogEventFetcher extends LogFetcher {
 
         events.push(event);
       } else {
+        console.error(`unknown contract : ${eventAddress}`);
         // TODO typing
         (globalThis as any).logger &&
           (globalThis as any).logger.error(`unknown contract: ${eventAddress}`);

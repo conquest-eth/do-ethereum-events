@@ -4,3 +4,4 @@ node_modules/
 wrangler.toml
 .vscode/*
 !.vscode/*.default
+scripts/manual_test_2.ts
