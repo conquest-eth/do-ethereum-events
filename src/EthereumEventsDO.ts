@@ -1,5 +1,5 @@
 import { Contract, ethers } from 'ethers';
-import { getLogEvents, LogEvent } from './utils/ethereum';
+import { LogEventFetcher, LogEvent } from './utils/ethereum';
 import {
   createJSONResponse,
   parseGETParams,
@@ -39,6 +39,7 @@ export abstract class EthereumEventsDO {
   static alarm: { interval?: number } | null = {};
   static scheduled: { interval: number } = { interval: 0 };
 
+  logEventFetcher: LogEventFetcher | undefined;
   provider: ethers.providers.JsonRpcProvider;
   contractsData: ContractData[] | undefined;
   contracts: ethers.Contract[] | undefined;
@@ -155,7 +156,7 @@ export abstract class EthereumEventsDO {
     try {
       await this._setupContracts();
 
-      if (!this.contractsData || !this.contracts) {
+      if (!this.contractsData || !this.contracts || !this.logEventFetcher) {
         this.processing = false;
         return new Response('Not Ready');
       }
@@ -185,7 +186,7 @@ export abstract class EthereumEventsDO {
 
       const latestBlock = await this.provider.getBlockNumber();
 
-      let toBlock = Math.min(latestBlock, fromBlock + 100000); // TODO Config: 10,000 max block range
+      let toBlock = latestBlock;
 
       if (fromBlock > toBlock) {
         console.log(`no new block yet, skip`);
@@ -194,20 +195,12 @@ export abstract class EthereumEventsDO {
       }
 
       console.log(`fetching...`);
-      const { events: newEvents, toBlock: newToBlock } = await getLogEvents(
-        this.provider,
-        this.contracts,
-        {
+      const { events: newEvents, toBlockUsed: newToBlock } =
+        await this.logEventFetcher.getLogEvents({
           fromBlock,
-          toBlock,
-        },
-      );
-      if (newToBlock !== toBlock) {
-        console.log(
-          `number of block fetched was reduced by ${toBlock - newToBlock}`,
-        );
-        toBlock = newToBlock;
-      }
+          toBlock: toBlock,
+        });
+      toBlock = newToBlock;
 
       console.log({
         latestBlock,
@@ -480,6 +473,8 @@ export abstract class EthereumEventsDO {
           ),
         );
       }
+
+      this.logEventFetcher = new LogEventFetcher(this.provider, this.contracts);
     }
   }
 
