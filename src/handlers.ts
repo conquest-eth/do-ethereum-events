@@ -1,4 +1,10 @@
-import { fetchGlobalDO, handleOptions, pathFromURL } from './utils/request';
+import { spaceOutGetRequest, spaceOutGetRequestOptimisitcaly } from './helpers';
+import {
+  fetchGlobalDO,
+  getGlobalDO,
+  handleOptions,
+  pathFromURL,
+} from './utils/request';
 
 export default {
   async fetch(
@@ -29,9 +35,11 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ) {
-    await fetchGlobalDO(
-      env.ETHEREUM_EVENTS,
-      new Request('http://localhost/process'),
+    // 60 seconds is the minimal duration of a CRON job
+    spaceOutGetRequestOptimisitcaly(
+      getGlobalDO(env.ETHEREUM_EVENTS),
+      'http://localhost/process',
+      { interval: 6, duration: 60 },
     );
   },
 };

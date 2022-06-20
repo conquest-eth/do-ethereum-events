@@ -39,7 +39,7 @@ Example: [the websocket implementation](src/implementations/WebSocketEthereumEve
 Indeed, as a Durable Object you still need to hook its request from the worker like so for example:
 
 ```typescript
-/// index.ts
+/// worker.ts
 export default {
   async fetch(
     request: Request,

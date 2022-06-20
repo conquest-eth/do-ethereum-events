@@ -1,4 +1,4 @@
-import { handleRequest } from '@/index';
+import { handleRequest } from '@/worker';
 
 test('should redirect to example page on no route match', async () => {
   const env = getMiniflareBindings();

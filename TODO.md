@@ -1,3 +1,3 @@
 - [ ] helpers for interval on scheduled calls
 - [ ] export classes
-- [ ] implement getLogger class with memory on request size, + option to store it in Durable Object ?
+- [x] implement getLogger class with memory on request size, + option to store it in Durable Object ?

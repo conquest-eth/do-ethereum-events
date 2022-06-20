@@ -25,13 +25,17 @@ export function handleOptions(request: Request) {
   }
 }
 
+export function getGlobalDO(DO: DurableObjectNamespace): DurableObjectStub {
+  let doID = DO.idFromName('_GLOBAL_');
+  return DO.get(doID);
+}
+
 export function fetchGlobalDO(
   DO: DurableObjectNamespace,
   request: Request,
   path?: string,
 ) {
-  let doID = DO.idFromName('_GLOBAL_');
-  let durableObject = DO.get(doID);
+  const durableObject = getGlobalDO(DO);
   if (path) {
     const newURL = new URL(request.url);
     newURL.pathname = path;
