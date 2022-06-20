@@ -1,6 +1,6 @@
 {
   "name": "ethereum-events-do",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
