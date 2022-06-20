@@ -16,7 +16,7 @@ export default {
           // TODO debug UI onoy, main site would be a static website served elsewhere
           return new Response('hello');
         case 'events':
-          return fetchGlobalDO(env.EVENT_LIST, request);
+          return fetchGlobalDO(env.ETHEREUM_EVENTS, request);
         default:
           return new Response('Not found', { status: 404 });
       }

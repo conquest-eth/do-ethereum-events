@@ -8,19 +8,41 @@ export function days(num: number): number {
 
 export const SECONDS = 1000;
 
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(() => resolve(), ms));
+export interface TimeoutPromise<T> extends Promise<T> {
+  reject?: () => void;
 }
 
-export async function sleep_then_execute(
+export function sleep(ms: number): TimeoutPromise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+  let promiseReject: () => void | undefined;
+  const promise: TimeoutPromise<void> = new Promise<void>((resolve, reject) => {
+    promiseReject = reject;
+    timeout = setTimeout(() => {
+      promise.reject = undefined;
+      resolve();
+    }, ms);
+  });
+  promise.reject = () => {
+    if (promise.reject) {
+      clearTimeout(timeout);
+      promiseReject();
+    }
+  };
+  return promise;
+}
+
+export function sleep_then_execute<T>(
   seconds: number,
-  func: () => Promise<any>,
-) {
+  func: () => Promise<T>,
+  log = false,
+): TimeoutPromise<T> {
   const miliseconds = seconds * SECONDS;
   if (seconds === 0) {
-    await func();
+    return func();
   } else {
-    console.log(`sleeping for ${miliseconds}ms`);
-    return sleep(miliseconds).then(() => func());
+    if (log) {
+      console.log(`executing in ${miliseconds / 1000}s...`);
+    }
+    return sleep(miliseconds).then(func);
   }
 }

@@ -25,12 +25,12 @@ DATA_DOG_API_KEY = "{{DATA_DOG_API_KEY}}"
 
 
 [durable_objects]
-bindings = [{name = "EVENT_LIST", class_name = "EventList"}]
+bindings = [{name = "ETHEREUM_EVENTS", class_name = "EthereumEventsDO"}]
 
 
 [[migrations]]
 tag = "v1"
-new_classes = ["EventList"]
+new_classes = ["EthereumEventsDO"]
 
 [miniflare]
 kv_persist = true

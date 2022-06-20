@@ -5,7 +5,7 @@ import {
   parseGETParams,
   pathFromURL,
 } from './utils/request';
-import { SECONDS, sleep_then_execute } from './utils/time';
+import { SECONDS, sleep_then_execute, TimeoutPromise } from './utils/time';
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
@@ -35,8 +35,9 @@ type BlockEvents = { hash: string; number: number; events: LogEvent[] };
 
 type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
 
-export abstract class BaseEventList {
-  static interval: number | undefined;
+export abstract class EthereumEventsDO {
+  static alarm: { interval?: number } | null = {};
+  static scheduled: { interval: number } = { interval: 6 };
 
   provider: ethers.providers.JsonRpcProvider;
   contractsData: ContractData[] | undefined;
@@ -96,9 +97,47 @@ export abstract class BaseEventList {
 
     console.log({ reset, numContracts: data.list.length });
 
-    this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+    if (EthereumEventsDO.alarm) {
+      this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+    }
 
     return createJSONResponse({ success: true, reset });
+  }
+
+  async triggerAlarm() {
+    if (EthereumEventsDO.alarm) {
+      let currentAlarm = await this.state.storage.getAlarm();
+      if (currentAlarm == null) {
+        this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+      }
+    }
+  }
+
+  processes: TimeoutPromise<any>[] = [];
+  async process() {
+    if (this.processes.length > 0) {
+      for (const process of this.processes) {
+        if (process.reject) {
+          process.reject();
+        }
+      }
+      this.processes = [];
+    }
+    const timestampInMilliseconds = Date.now();
+    if (EthereumEventsDO.scheduled.interval) {
+      console.log(`PROCESS ${timestampInMilliseconds}`);
+
+      console.log(
+        `multiple processes : ${EthereumEventsDO.scheduled.interval}`,
+      );
+      // 60 is the minimum cron interval
+      await this._execute_multiple_process(
+        60,
+        EthereumEventsDO.scheduled.interval,
+      );
+    } else {
+      await this._execute_one_process();
+    }
   }
 
   async processEvents(): Promise<Response> {
@@ -133,7 +172,12 @@ export abstract class BaseEventList {
 
     const latestBlock = await this.provider.getBlockNumber();
 
-    const toBlock = Math.min(latestBlock, fromBlock + 10000); // TODO Config: 10,000 max block range
+    const toBlock = Math.min(latestBlock, fromBlock + 100000); // TODO Config: 10,000 max block range
+
+    if (fromBlock > toBlock) {
+      console.log(`no new block yet, skip`);
+      return new Response('no new block yet, skip');
+    }
 
     const newEvents = await getLogEvents(this.provider, this.contracts, {
       fromBlock,
@@ -296,6 +340,8 @@ export abstract class BaseEventList {
     switch (patharray[patharray.length - 1]) {
       case 'setup':
         return this.setup(json as ContractSetup);
+      case 'process':
+        return this.processEvents();
       case 'list':
       case 'events':
         const params = parseGETParams(request.url);
@@ -306,26 +352,39 @@ export abstract class BaseEventList {
     }
   }
 
+  alarmProcesses: TimeoutPromise<any>[] = [];
   async alarm() {
-    const timestampInMilliseconds = Date.now();
-    console.log(`ALARM ${timestampInMilliseconds}`);
-
-    let response: Response;
-
-    if (BaseEventList.interval) {
-      console.log(`multiple processes : ${BaseEventList.interval}`);
-      response = await this._alarm_multiple_process(BaseEventList.interval);
-    } else {
-      response = await this._alarm_one_process();
+    if (this.alarmProcesses.length > 0) {
+      for (const process of this.alarmProcesses) {
+        if (process.reject) {
+          process.reject();
+        }
+      }
+      this.alarmProcesses = [];
     }
+    const timestampInMilliseconds = Date.now();
+    if (EthereumEventsDO.alarm) {
+      console.log(`ALARM ${timestampInMilliseconds}`);
 
-    // TODO ctx.waitUntil ?
-
-    this.state.storage.setAlarm(timestampInMilliseconds + 1 * SECONDS);
-    return response;
+      if (EthereumEventsDO.alarm && EthereumEventsDO.alarm.interval) {
+        console.log(`multiple processes : ${EthereumEventsDO.alarm.interval}`);
+        // 30 is the minimum alarm interval
+        await this._execute_multiple_process(
+          30,
+          EthereumEventsDO.alarm.interval,
+        );
+        this.state.storage.setAlarm(
+          Date.now() + EthereumEventsDO.alarm.interval * SECONDS,
+        );
+      } else {
+        await this._execute_one_process();
+        // unfortunately, the minimum alarm interval is 30 seconds
+        this.state.storage.setAlarm(timestampInMilliseconds + 1 * SECONDS);
+      }
+    }
   }
 
-  async _alarm_one_process(): Promise<Response> {
+  async _execute_one_process(): Promise<Response> {
     let response: Response | undefined;
     try {
       console.log(`processing...`);
@@ -337,18 +396,16 @@ export abstract class BaseEventList {
     return response;
   }
 
-  async _alarm_multiple_process(interval: number) {
-    const processes = [];
-
-    for (let delay = 0; delay <= 60 - interval; delay += interval) {
-      processes.push(
-        sleep_then_execute(delay, () => this._alarm_one_process()),
+  async _execute_multiple_process(duration: number, interval: number) {
+    for (let delay = 0; delay <= duration - interval; delay += interval) {
+      this.alarmProcesses.push(
+        sleep_then_execute(delay, () => this._execute_one_process()),
       );
     }
 
     let response: Response;
     try {
-      await Promise.all(processes);
+      await Promise.all(this.alarmProcesses);
       response = new Response('OK');
     } catch (err) {
       console.error(err);

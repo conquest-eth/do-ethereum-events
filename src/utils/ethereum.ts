@@ -51,19 +51,34 @@ export async function getLogEvents(
   options: { fromBlock: number; toBlock: number },
 ): Promise<LogEvent[]> {
   const events: LogEvent[] = [];
-  const logs: Log[] = await provider.send('eth_getLogs', [
-    {
-      address: contracts.map((v) => v.address),
-      fromBlock: BigNumber.from(options.fromBlock).toHexString(),
-      toBlock: BigNumber.from(options.toBlock).toHexString(),
-      //   topics: [
-      //     [
-      //       // topic[0]
-      //       contract.filters.EventName().topics[0],
-      //     ],
-      //   ],
-    },
-  ]);
+
+  let logs: Log[];
+
+  try {
+    logs = await provider.send('eth_getLogs', [
+      {
+        address: contracts.map((v) => v.address),
+        fromBlock: BigNumber.from(options.fromBlock).toHexString(),
+        toBlock: BigNumber.from(options.toBlock).toHexString(),
+        //   topics: [
+        //     [
+        //       // topic[0]
+        //       contract.filters.EventName().topics[0],
+        //     ],
+        //   ],
+      },
+    ]);
+  } catch (err: any) {
+    console.log(`ERR`, err);
+    if (err.code === 'SERVER_ERROR') {
+      const json = JSON.parse(err.body);
+      if (json.code === -32602) {
+        console.log(json.message);
+        throw new Error(`TODO retry with new range`);
+      }
+    }
+    throw err;
+  }
 
   for (let i = 0; i < logs.length; i++) {
     const log = logs[i];

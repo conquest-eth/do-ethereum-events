@@ -1,6 +1,5 @@
-import { BaseEventList } from './BaseEventList';
+import { EthereumEventsDO } from './EthereumEventsDO';
 import workerHandlers from './handlers';
-import { WebSocketEventList } from './implementations/WebSocketEventList';
 
 export async function handleRequest(
   request: Request,
@@ -12,10 +11,9 @@ export async function handleRequest(
 
 const worker: ExportedHandler<Env> = { fetch: handleRequest };
 
-// export { VoidEventList as EventList} from './lib/implementations/VoidEventList'
-export { WebSocketEventList as EventList } from './implementations/WebSocketEventList';
-
-BaseEventList.interval = 6;
+// export { VoidEthereumEventsDO as EthereumEventsDO} from './lib/implementations/VoidEthereumEventsDO'
+export { WebSocketEthereumEventsDO as EthereumEventsDO } from './implementations/WebSocketEthereumEventsDO';
+EthereumEventsDO.alarm = { interval: 6 };
 
 // export worker
 export default worker;

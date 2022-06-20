@@ -1,7 +1,7 @@
 import { pathFromURL } from '@/utils/request';
-import { BaseEventList, EventWithId } from '../BaseEventList';
+import { EthereumEventsDO, EventWithId } from '../EthereumEventsDO';
 
-export class WebSocketEventList extends BaseEventList {
+export class WebSocketEthereumEventsDO extends EthereumEventsDO {
   sessions: any[] = [];
 
   constructor(state: DurableObjectState, env: Env) {

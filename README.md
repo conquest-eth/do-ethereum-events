@@ -6,13 +6,13 @@
 
 `npm i ethereum-event-do`
 
-### extend BaseEventList and implement `onEventStream`
+### extend EthereumEventsDO and implement `onEventStream`
 
 ```typescript
-/// MyEventList.ts
-import { BaseEventList, EventWithId } from 'ethereum-event-do';
+/// MyEthereumEventsDO.ts
+import { EthereumEventsDO, EventWithId } from 'ethereum-event-do';
 
-export class MyEventList extends BaseEventList {
+export class MyEthereumEventsDO extends EthereumEventsDO {
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
@@ -31,7 +31,7 @@ export class MyEventList extends BaseEventList {
 
 ```
 
-Example: [the websocket implementation](src/implementations/WebSocketEventList.ts)
+Example: [the websocket implementation](src/implementations/WebSocketEthereumEventsDO.ts.ts)
 
 ### hook it up in the worker
 
@@ -49,7 +49,7 @@ export default {
       case 'events/setup':
       case 'events/list':
         // we only need one DO so we use _GLOBAL_ id
-        const namespace = env.EVENT_LIST;
+        const namespace = env.ETHEREUM_EVENTS;
         const DO = namespace.get(namespace.idFromName('_GLOBAL_'));
 
         return DO.fetch(request);
@@ -60,8 +60,9 @@ export default {
   },
 };
 
+// TODO rename
 
-export { MyEventList as EventList } from './MyEventList';
+export { MyEthereumEventsDO as EthereumEventsDO } from './MyEthereumEventsDO';
 ```
 
 This is just for demonstration purpose, admin checks need to be set for `setup`
@@ -76,7 +77,7 @@ for example:
 ```toml
 ...
 [durable_objects]
-bindings = [{name = "EVENT_LIST", class_name = "EventList"}]
+bindings = [{name = "ETHEREUM_EVENTS", class_name = "EthereumEventsDO"}]
 ...
 ```
 
