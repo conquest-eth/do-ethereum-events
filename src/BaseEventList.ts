@@ -1,11 +1,27 @@
-import { BigNumber, Contract, ethers, Wallet, utils } from 'ethers';
-import { DO } from './DO';
-import { createResponse } from './utils';
-import { getLogEvents, LogEvent } from './ethereum/utils';
+import { Contract, ethers } from 'ethers';
+import { getLogEvents, LogEvent } from './utils/ethereum';
+import { createJSONResponse, pathFromURL } from './utils/request';
+import { SECONDS } from './utils/time';
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
 }
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(() => resolve(), ms));
+}
+
+async function sleep_then_execute(seconds: number, func: () => Promise<any>) {
+  const miliseconds = 1000 * seconds;
+  if (seconds === 0) {
+    await func();
+  } else {
+    console.log(`sleeping for ${miliseconds}ms`);
+    return sleep(miliseconds).then(() => func());
+  }
+}
+
+type ContractSetup = { reset?: boolean; list: ContractData[] };
 
 type EventBlock = {
   number: number;
@@ -29,14 +45,17 @@ type BlockEvents = { hash: string; number: number; events: LogEvent[] };
 
 type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
 
-export abstract class BaseEventList extends DO {
+export abstract class BaseEventList {
+  static interval: number | undefined;
+
   provider: ethers.providers.JsonRpcProvider;
   contractsData: ContractData[] | undefined;
   contracts: ethers.Contract[] | undefined;
   finality: number;
 
-  constructor(state: DurableObjectState, env: Env) {
-    super(state, env);
+  /// requires ETHEREUM_NODE
+  constructor(protected state: DurableObjectState, protected env: Env) {
+    // super(state, env);
     console.log(`ethereum node : ${env.ETHEREUM_NODE}`);
     this.provider = new ethers.providers.JsonRpcProvider(env.ETHEREUM_NODE);
     this.provider = new ethers.providers.StaticJsonRpcProvider({
@@ -46,17 +65,11 @@ export abstract class BaseEventList extends DO {
     this.finality = 12; // TODO
   }
 
-  async setup(
-    path: string[],
-    request: Request,
-    data: { reset?: boolean; list: ContractData[] },
-  ): Promise<Response> {
+  async setup(data: ContractSetup) {
     await this._setupContracts();
 
     // TODO only admin
     let reset = data.reset;
-
-    console.log({ path, data });
 
     if (!this.contractsData) {
       reset = true;
@@ -93,66 +106,12 @@ export abstract class BaseEventList extends DO {
 
     console.log({ reset, numContracts: data.list.length });
 
-    return createResponse({ success: true, reset });
+    this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+
+    return createJSONResponse({ success: true, reset });
   }
 
-  _getEventsMap(
-    start: number,
-    limit: number,
-  ): Promise<Map<string, LogEvent> | undefined> {
-    return this.state.storage.list<LogEvent>({
-      start: `event_${lexicographicNumber15(start)}`,
-      limit,
-    });
-  }
-
-  _getLastSync(): Promise<LastSync | undefined> {
-    return this.state.storage.get<LastSync>(`_sync_`);
-  }
-
-  async _putLastSync(lastSync: LastSync): Promise<void> {
-    await this.state.storage.put<LastSync>(`_sync_`, lastSync);
-  }
-
-  async getEvents(path: string[]): Promise<Response> {
-    const start = parseInt(path[0]);
-    const limit = parseInt(path[1]);
-
-    const eventsMap = await this._getEventsMap(start, limit);
-    const events = [];
-    if (eventsMap) {
-      for (const entry of eventsMap.entries()) {
-        const eventID = entry[0];
-        const event = entry[1];
-        events.push({ streamID: parseInt(eventID.slice(6)), ...event });
-      }
-    }
-
-    return createResponse({ events, success: true });
-  }
-
-  async _setupContracts() {
-    if (!this.contractsData) {
-      this.contractsData = await this.state.storage.get<ContractData[]>(
-        '_contracts_',
-      );
-    }
-
-    if (!this.contracts && this.contractsData) {
-      this.contracts = [];
-      for (const contractData of this.contractsData) {
-        this.contracts.push(
-          new Contract(
-            contractData.address,
-            contractData.eventsABI,
-            this.provider,
-          ),
-        );
-      }
-    }
-  }
-
-  async processEvents(path: string[]): Promise<Response> {
+  async processEvents(): Promise<Response> {
     await this._setupContracts();
 
     if (!this.contractsData || !this.contracts) {
@@ -298,8 +257,146 @@ export abstract class BaseEventList extends DO {
 
     this.onEventStream(eventStream);
 
-    return createResponse({ success: true });
+    return createJSONResponse({ success: true });
+  }
+
+  async getEvents(path: string[]): Promise<Response> {
+    const start = parseInt(path[1]);
+    const limit = parseInt(path[2]);
+
+    const eventsMap = await this._getEventsMap(start, limit);
+    const events = [];
+    if (eventsMap) {
+      for (const entry of eventsMap.entries()) {
+        const eventID = entry[0];
+        const event = entry[1];
+        events.push({ streamID: parseInt(eventID.slice(6)), ...event });
+      }
+    }
+
+    return createJSONResponse({ events, success: true });
   }
 
   abstract onEventStream(eventStream: EventWithId[]): void;
+
+  // --------------------------------------------------------------------------
+  // ENTRY POINTS
+  // --------------------------------------------------------------------------
+
+  async fetch(request: Request) {
+    const { patharray, firstPath } = pathFromURL(request.url);
+    let json;
+    if (request.method == 'POST' || request.method == 'PUT') {
+      try {
+        json = await request.json();
+      } catch (e) {
+        json = undefined;
+      }
+    }
+    switch (firstPath) {
+      case 'setup': {
+        return this.setup(json as ContractSetup);
+      }
+      case 'events': {
+        return this.getEvents(patharray);
+      }
+      default: {
+        return new Response('Not found', { status: 404 });
+      }
+    }
+  }
+
+  async alarm() {
+    const timestampInMilliseconds = Date.now();
+    console.log(`ALARM ${timestampInMilliseconds}`);
+
+    let response: Response;
+
+    if (BaseEventList.interval) {
+      console.log(`multiple processes : ${BaseEventList.interval}`);
+      response = await this._alarm_multiple_process(BaseEventList.interval);
+    } else {
+      response = await this._alarm_one_process();
+    }
+
+    // TODO ctx.waitUntil ?
+
+    this.state.storage.setAlarm(timestampInMilliseconds + 1 * SECONDS);
+    return response;
+  }
+
+  async _alarm_one_process(): Promise<Response> {
+    let response: Response | undefined;
+    try {
+      console.log(`processing...`);
+      response = await this.processEvents();
+    } catch (err) {
+      console.error(err);
+      response = new Response(err as any);
+    }
+    return response;
+  }
+
+  async _alarm_multiple_process(interval: number) {
+    const processes = [];
+
+    for (let delay = 0; delay <= 60 - interval; delay += interval) {
+      processes.push(
+        sleep_then_execute(delay, () => this._alarm_one_process()),
+      );
+    }
+
+    let response: Response;
+    try {
+      await Promise.all(processes);
+      response = new Response('OK');
+    } catch (err) {
+      console.error(err);
+      response = new Response(err as any);
+    }
+    return response;
+  }
+
+  // --------------------------------------------------------------------------
+  // INTERNAL
+  // --------------------------------------------------------------------------
+
+  async _setupContracts() {
+    if (!this.contractsData) {
+      this.contractsData = await this.state.storage.get<ContractData[]>(
+        '_contracts_',
+      );
+    }
+
+    if (!this.contracts && this.contractsData) {
+      this.contracts = [];
+      for (const contractData of this.contractsData) {
+        this.contracts.push(
+          new Contract(
+            contractData.address,
+            contractData.eventsABI,
+            this.provider,
+          ),
+        );
+      }
+    }
+  }
+
+  _getEventsMap(
+    start: number,
+    limit: number,
+  ): Promise<Map<string, LogEvent> | undefined> {
+    return this.state.storage.list<LogEvent>({
+      start: `event_${lexicographicNumber15(start)}`,
+      limit,
+    });
+  }
+
+  _getLastSync(): Promise<LastSync | undefined> {
+    return this.state.storage.get<LastSync>(`_sync_`);
+  }
+
+  async _putLastSync(lastSync: LastSync): Promise<void> {
+    await this.state.storage.put<LastSync>(`_sync_`, lastSync);
+  }
 }

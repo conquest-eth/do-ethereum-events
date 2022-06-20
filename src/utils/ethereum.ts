@@ -1,6 +1,19 @@
 import { BigNumber, Contract, providers, utils } from 'ethers';
 import { deepCopy, LogDescription } from 'ethers/lib/utils';
 
+export function isSignatureValid({
+  owner,
+  message,
+  signature,
+}: {
+  owner: string;
+  message: string;
+  signature: string;
+}): boolean {
+  const addressFromSignature = utils.verifyMessage(message, signature);
+  return owner.toLowerCase() === addressFromSignature.toLowerCase();
+}
+
 // import {Log} from '@ethersproject/abstract-provider';
 interface Log {
   blockNumber: number;

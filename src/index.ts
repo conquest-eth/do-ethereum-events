@@ -1,21 +1,21 @@
-import { handlers } from './lib/handlers';
+import { BaseEventList } from './BaseEventList';
+import workerHandlers from './handlers';
+import { WebSocketEventList } from './implementations/WebSocketEventList';
 
-const worker = handlers({
-  interval: 6,
-  functions: {
-    GET: ['getEvents', 'processEvents', 'websocket'],
-    POST: ['setup'],
-  },
-});
-
-export async function handleRequest(request: Request, env: Env) {
-  return worker.fetch(request, env);
+export async function handleRequest(
+  request: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+) {
+  return workerHandlers.fetch(request, env, ctx);
 }
 
-// In order for the workers runtime to find the class that implements
-// our Durable Object namespace, we must export it from the root module.
+const worker: ExportedHandler<Env> = { fetch: handleRequest };
+
 // export { VoidEventList as EventList} from './lib/implementations/VoidEventList'
-export { WebSocketEventList as EventList } from './lib/implementations/WebSocketEventList';
+export { WebSocketEventList as EventList } from './implementations/WebSocketEventList';
+
+BaseEventList.interval = 6;
 
 // export worker
 export default worker;

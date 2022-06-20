@@ -1,7 +1,7 @@
 import 'isomorphic-fetch';
 
 async function main() {
-  await fetch('http://localhost:8787/setup', {
+  await fetch('http://localhost:8787/events/setup', {
     method: 'POST',
     body: JSON.stringify({
       list: [

@@ -1,6 +1,5 @@
-import { Event } from 'ethers';
+import { pathFromURL } from '@/utils/request';
 import { BaseEventList, EventWithId } from '../BaseEventList';
-import { LogEvent } from '../ethereum/utils';
 
 export class WebSocketEventList extends BaseEventList {
   sessions: any[] = [];
@@ -27,7 +26,7 @@ export class WebSocketEventList extends BaseEventList {
     });
   }
 
-  async websocket(path: string[], request: Request) {
+  async websocket(request: Request) {
     // The request is to `/api/room/<name>/websocket`. A client is trying to establish a new
     // WebSocket session.
     if (request.headers.get('Upgrade') != 'websocket') {
@@ -49,6 +48,18 @@ export class WebSocketEventList extends BaseEventList {
 
     // Now we return the other end of the pair to the client.
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async fetch(request: Request) {
+    const { firstPath } = pathFromURL(request.url);
+    switch (firstPath) {
+      case 'websocket': {
+        return this.websocket(request);
+      }
+      default: {
+        return super.fetch(request);
+      }
+    }
   }
 
   // handleSession() implements our WebSocket-based chat protocol.

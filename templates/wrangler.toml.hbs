@@ -7,14 +7,16 @@ workers_dev = {{devMode}}
 
 usage_model= "bundled"
 
+compatibility_flags = ["durable_object_alarms"]
+
 # TODO investigate why ethers node version is used
 node_compat = true
 
 [build]
 command = "node build.js"
 
-[triggers]
-crons = ["* * * * *"]
+{{!-- [triggers]
+crons = ["* * * * *"] --}}
 
 [vars]
 ENVIRONMENT = "{{environment}}"
