@@ -1,24 +1,10 @@
 import { Contract, ethers } from 'ethers';
 import { getLogEvents, LogEvent } from './utils/ethereum';
 import { createJSONResponse, pathFromURL } from './utils/request';
-import { SECONDS } from './utils/time';
+import { SECONDS, sleep_then_execute } from './utils/time';
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(() => resolve(), ms));
-}
-
-async function sleep_then_execute(seconds: number, func: () => Promise<any>) {
-  const miliseconds = 1000 * seconds;
-  if (seconds === 0) {
-    await func();
-  } else {
-    console.log(`sleeping for ${miliseconds}ms`);
-    return sleep(miliseconds).then(() => func());
-  }
 }
 
 type ContractSetup = { reset?: boolean; list: ContractData[] };

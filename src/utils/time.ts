@@ -7,3 +7,20 @@ export function days(num: number): number {
 }
 
 export const SECONDS = 1000;
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(() => resolve(), ms));
+}
+
+export async function sleep_then_execute(
+  seconds: number,
+  func: () => Promise<any>,
+) {
+  const miliseconds = seconds * SECONDS;
+  if (seconds === 0) {
+    await func();
+  } else {
+    console.log(`sleeping for ${miliseconds}ms`);
+    return sleep(miliseconds).then(() => func());
+  }
+}
