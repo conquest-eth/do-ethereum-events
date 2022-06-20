@@ -47,8 +47,8 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     switch (new URL(request.url).pathname) {
-      case 'events/setup':
-      case 'events/list':
+      case '/events/setup':
+      case '/events/list':
         // we only need one DO so we use _GLOBAL_ id
         const namespace = env.ETHEREUM_EVENTS;
         const DO = namespace.get(namespace.idFromName('_GLOBAL_'));
