@@ -97,19 +97,21 @@ export abstract class EthereumEventsDO {
 
     console.log({ reset, numContracts: data.list.length });
 
-    if (EthereumEventsDO.alarm) {
-      this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
-    }
+    // if (EthereumEventsDO.alarm) {
+    //   this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+    // }
+    this.alarm();
 
     return createJSONResponse({ success: true, reset });
   }
 
   async triggerAlarm() {
     if (EthereumEventsDO.alarm) {
-      let currentAlarm = await this.state.storage.getAlarm();
-      if (currentAlarm == null) {
-        this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
-      }
+      // let currentAlarm = await this.state.storage.getAlarm();
+      // if (currentAlarm == null) {
+      //   this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
+      // }
+      this.alarm();
     }
   }
 
@@ -140,158 +142,186 @@ export abstract class EthereumEventsDO {
     }
   }
 
+  processing = false;
   async processEvents(): Promise<Response> {
-    await this._setupContracts();
-
-    if (!this.contractsData || !this.contracts) {
-      return new Response('Not Ready');
+    if (this.processing) {
+      console.log(`still processing... skipping...`);
+      return new Response('processing');
     }
+    this.processing = true;
+    try {
+      await this._setupContracts();
 
-    const lastSync = await this._getLastSync();
-    let streamID = 0;
-    let fromBlock = 0;
-    for (const contractData of this.contractsData) {
-      if (contractData.startBlock) {
-        if (fromBlock === 0) {
-          fromBlock = contractData.startBlock;
-        } else if (contractData.startBlock < fromBlock) {
-          fromBlock = contractData.startBlock;
+      if (!this.contractsData || !this.contracts) {
+        return new Response('Not Ready');
+      }
+
+      const lastSync = await this._getLastSync();
+      let streamID = 0;
+      let fromBlock = 0;
+      for (const contractData of this.contractsData) {
+        if (contractData.startBlock) {
+          if (fromBlock === 0) {
+            fromBlock = contractData.startBlock;
+          } else if (contractData.startBlock < fromBlock) {
+            fromBlock = contractData.startBlock;
+          }
         }
       }
-    }
-    let unconfirmedBlocks: EventBlock[] = [];
-    if (lastSync) {
-      unconfirmedBlocks = lastSync.unconfirmedBlocks;
-      streamID = lastSync.nextStreamID;
-      if (unconfirmedBlocks.length > 0) {
-        fromBlock = lastSync.unconfirmedBlocks[0].number;
-      } else {
-        fromBlock = lastSync.lastToBlock + 1;
-      }
-    }
-
-    const latestBlock = await this.provider.getBlockNumber();
-
-    const toBlock = Math.min(latestBlock, fromBlock + 100000); // TODO Config: 10,000 max block range
-
-    if (fromBlock > toBlock) {
-      console.log(`no new block yet, skip`);
-      return new Response('no new block yet, skip');
-    }
-
-    const newEvents = await getLogEvents(this.provider, this.contracts, {
-      fromBlock,
-      toBlock,
-    });
-
-    console.log({ latestBlock, toBlock, newEvents: newEvents.length });
-
-    // grouping per block...
-    const groups: { [hash: string]: BlockEvents } = {};
-    const eventsGroupedPerBlock: BlockEvents[] = [];
-    for (const event of newEvents) {
-      let group = groups[event.blockHash];
-      if (!group) {
-        group = groups[event.blockHash] = {
-          hash: event.blockHash,
-          number: event.blockNumber,
-          events: [],
-        };
-        eventsGroupedPerBlock.push(group);
-      }
-      group.events.push(event);
-    }
-
-    // set up the new entries to be added to the stream
-    // const newEventEntries: DurableObjectEntries<LogEvent> = {};
-    const eventStream: EventWithId[] = [];
-
-    // find reorgs
-    let reorgBlock: EventBlock | undefined;
-    let currentIndex = 0;
-    for (const block of eventsGroupedPerBlock) {
-      if (currentIndex < unconfirmedBlocks.length) {
-        const unconfirmedBlockAtIndex = unconfirmedBlocks[currentIndex];
-        if (unconfirmedBlockAtIndex.hash !== block.hash) {
-          reorgBlock = unconfirmedBlockAtIndex;
-          break;
+      let unconfirmedBlocks: EventBlock[] = [];
+      if (lastSync) {
+        unconfirmedBlocks = lastSync.unconfirmedBlocks;
+        streamID = lastSync.nextStreamID;
+        if (unconfirmedBlocks.length > 0) {
+          fromBlock = lastSync.unconfirmedBlocks[0].number;
+        } else {
+          fromBlock = lastSync.lastToBlock + 1;
         }
-        currentIndex++;
       }
-    }
 
-    if (reorgBlock) {
-      // re-add event to the stream but flag them as removed
-      const lastUnconfirmedBlock =
-        unconfirmedBlocks[unconfirmedBlocks.length - 1];
-      const unconfirmedEventsMap = await this._getEventsMap(
-        reorgBlock.startStreamID,
-        lastUnconfirmedBlock.startStreamID + lastUnconfirmedBlock.numEvents,
+      const latestBlock = await this.provider.getBlockNumber();
+
+      let toBlock = Math.min(latestBlock, fromBlock + 100000); // TODO Config: 10,000 max block range
+
+      if (fromBlock > toBlock) {
+        console.log(`no new block yet, skip`);
+        return new Response('no new block yet, skip');
+      }
+
+      const { events: newEvents, toBlock: newToBlock } = await getLogEvents(
+        this.provider,
+        this.contracts,
+        {
+          fromBlock,
+          toBlock,
+        },
       );
-      if (unconfirmedEventsMap) {
-        for (const entry of unconfirmedEventsMap.entries()) {
-          const event = entry[1];
-          // newEventEntries[`${streamID++}`] = {...event, removed: true};
-          eventStream.push({ streamID: streamID++, ...event, removed: true });
+      if (newToBlock !== toBlock) {
+        console.log(
+          `number of block fetched was reduced by ${toBlock - newToBlock}`,
+        );
+        toBlock = newToBlock;
+      }
+
+      console.log({
+        latestBlock,
+        fromBlock,
+        toBlock,
+        newEvents: newEvents.length,
+      });
+
+      // grouping per block...
+      const groups: { [hash: string]: BlockEvents } = {};
+      const eventsGroupedPerBlock: BlockEvents[] = [];
+      for (const event of newEvents) {
+        let group = groups[event.blockHash];
+        if (!group) {
+          group = groups[event.blockHash] = {
+            hash: event.blockHash,
+            number: event.blockNumber,
+            events: [],
+          };
+          eventsGroupedPerBlock.push(group);
+        }
+        group.events.push(event);
+      }
+
+      // set up the new entries to be added to the stream
+      // const newEventEntries: DurableObjectEntries<LogEvent> = {};
+      const eventStream: EventWithId[] = [];
+
+      // find reorgs
+      let reorgBlock: EventBlock | undefined;
+      let currentIndex = 0;
+      for (const block of eventsGroupedPerBlock) {
+        if (currentIndex < unconfirmedBlocks.length) {
+          const unconfirmedBlockAtIndex = unconfirmedBlocks[currentIndex];
+          if (unconfirmedBlockAtIndex.hash !== block.hash) {
+            reorgBlock = unconfirmedBlockAtIndex;
+            break;
+          }
+          currentIndex++;
         }
       }
-    }
 
-    const startingBlockForNewEvent = reorgBlock
-      ? reorgBlock.number
-      : unconfirmedBlocks.length > 0
-      ? unconfirmedBlocks[unconfirmedBlocks.length - 1].number + 1
-      : eventsGroupedPerBlock.length > 0
-      ? eventsGroupedPerBlock[0].number
-      : 0; // was undefined // TODO undefined ?
-
-    // new events and new unconfirmed blocks
-    const newUnconfirmedBlocks: EventBlock[] = [];
-    for (const block of eventsGroupedPerBlock) {
-      if (block.events.length > 0 && block.number >= startingBlockForNewEvent) {
-        const startStreamID = streamID;
-        for (const event of block.events) {
-          // newEventEntries[`${streamID++}`] = {...event};
-          eventStream.push({ streamID: streamID++, ...event });
-        }
-        if (latestBlock - block.number <= this.finality) {
-          newUnconfirmedBlocks.push({
-            hash: block.hash,
-            number: block.number,
-            numEvents: block.events.length,
-            startStreamID,
-          });
+      if (reorgBlock) {
+        // re-add event to the stream but flag them as removed
+        const lastUnconfirmedBlock =
+          unconfirmedBlocks[unconfirmedBlocks.length - 1];
+        const unconfirmedEventsMap = await this._getEventsMap(
+          reorgBlock.startStreamID,
+          lastUnconfirmedBlock.startStreamID + lastUnconfirmedBlock.numEvents,
+        );
+        if (unconfirmedEventsMap) {
+          for (const entry of unconfirmedEventsMap.entries()) {
+            const event = entry[1];
+            // newEventEntries[`${streamID++}`] = {...event, removed: true};
+            eventStream.push({ streamID: streamID++, ...event, removed: true });
+          }
         }
       }
-    }
 
-    let entriesInGroupOf128: Record<string, LogEvent> = {};
-    let counter = 0;
-    for (const event of eventStream) {
-      entriesInGroupOf128[`event_${lexicographicNumber15(event.streamID)}`] =
-        event;
-      delete (event as any).streamID; // TODO typing
-      counter++;
-      if (counter == 128) {
+      const startingBlockForNewEvent = reorgBlock
+        ? reorgBlock.number
+        : unconfirmedBlocks.length > 0
+        ? unconfirmedBlocks[unconfirmedBlocks.length - 1].number + 1
+        : eventsGroupedPerBlock.length > 0
+        ? eventsGroupedPerBlock[0].number
+        : 0; // was undefined // TODO undefined ?
+
+      // new events and new unconfirmed blocks
+      const newUnconfirmedBlocks: EventBlock[] = [];
+      for (const block of eventsGroupedPerBlock) {
+        if (
+          block.events.length > 0 &&
+          block.number >= startingBlockForNewEvent
+        ) {
+          const startStreamID = streamID;
+          for (const event of block.events) {
+            // newEventEntries[`${streamID++}`] = {...event};
+            eventStream.push({ streamID: streamID++, ...event });
+          }
+          if (latestBlock - block.number <= this.finality) {
+            newUnconfirmedBlocks.push({
+              hash: block.hash,
+              number: block.number,
+              numEvents: block.events.length,
+              startStreamID,
+            });
+          }
+        }
+      }
+
+      let entriesInGroupOf128: Record<string, LogEvent> = {};
+      let counter = 0;
+      for (const event of eventStream) {
+        entriesInGroupOf128[`event_${lexicographicNumber15(event.streamID)}`] =
+          event;
+        delete (event as any).streamID; // TODO typing
+        counter++;
+        if (counter == 128) {
+          this.state.storage.put<LogEvent>(entriesInGroupOf128);
+          entriesInGroupOf128 = {};
+          counter = 0;
+        }
+      }
+      if (counter > 0) {
         this.state.storage.put<LogEvent>(entriesInGroupOf128);
-        entriesInGroupOf128 = {};
-        counter = 0;
       }
+
+      this._putLastSync({
+        latestBlock,
+        lastToBlock: toBlock,
+        unconfirmedBlocks: newUnconfirmedBlocks,
+        nextStreamID: streamID,
+      });
+
+      this.onEventStream(eventStream);
+
+      return createJSONResponse({ success: true });
+    } finally {
+      this.processing = false;
     }
-    if (counter > 0) {
-      this.state.storage.put<LogEvent>(entriesInGroupOf128);
-    }
-
-    this._putLastSync({
-      latestBlock,
-      lastToBlock: toBlock,
-      unconfirmedBlocks: newUnconfirmedBlocks,
-      nextStreamID: streamID,
-    });
-
-    this.onEventStream(eventStream);
-
-    return createJSONResponse({ success: true });
   }
 
   async getEvents({

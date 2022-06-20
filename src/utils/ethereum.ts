@@ -49,17 +49,19 @@ export async function getLogEvents(
   provider: providers.JsonRpcProvider,
   contracts: Contract[],
   options: { fromBlock: number; toBlock: number },
-): Promise<LogEvent[]> {
+): Promise<{ toBlock: number; events: LogEvent[] }> {
   const events: LogEvent[] = [];
 
-  let logs: Log[];
+  let logs: Log[] | undefined;
+
+  let toBlock = options.toBlock;
 
   try {
     logs = await provider.send('eth_getLogs', [
       {
         address: contracts.map((v) => v.address),
         fromBlock: BigNumber.from(options.fromBlock).toHexString(),
-        toBlock: BigNumber.from(options.toBlock).toHexString(),
+        toBlock: BigNumber.from(toBlock).toHexString(),
         //   topics: [
         //     [
         //       // topic[0]
@@ -69,15 +71,48 @@ export async function getLogEvents(
       },
     ]);
   } catch (err: any) {
-    console.log(`ERR`, err);
-    if (err.code === 'SERVER_ERROR') {
+    let retried = false;
+    if (err.body) {
       const json = JSON.parse(err.body);
-      if (json.code === -32602) {
-        console.log(json.message);
-        throw new Error(`TODO retry with new range`);
+      // alchemy API, getting the range that should work
+      // should still fallback on division by 2
+      if (json.error?.code === -32602 && json.error.message) {
+        const regex = /\[.*\]/gm;
+        const result = regex.exec(json.error.message);
+        let values: number[] | undefined;
+        if (result && result[0]) {
+          values = result[0]
+            .slice(1, result[0].length - 1)
+            .split(', ')
+            .map((v) => parseInt(v.slice(2), 16));
+        }
+
+        if (values && values.length === 2) {
+          toBlock = values[1];
+          retried = true;
+          logs = await provider.send('eth_getLogs', [
+            {
+              address: contracts.map((v) => v.address),
+              fromBlock: BigNumber.from(options.fromBlock).toHexString(),
+              toBlock: BigNumber.from(toBlock).toHexString(),
+              //   topics: [
+              //     [
+              //       // topic[0]
+              //       contract.filters.EventName().topics[0],
+              //     ],
+              //   ],
+            },
+          ]);
+        }
       }
     }
-    throw err;
+    if (!retried) {
+      throw err;
+    }
+  }
+
+  if (!logs) {
+    throw new Error(`no logs`);
   }
 
   for (let i = 0; i < logs.length; i++) {
@@ -107,5 +142,5 @@ export async function getLogEvents(
         (globalThis as any).logger.error(`unknown contract: ${eventAddress}`);
     }
   }
-  return events;
+  return { events, toBlock };
 }
