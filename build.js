@@ -13,7 +13,10 @@ try {
     target: 'esnext',
     external: ['__STATIC_CONTENT_MANIFEST'],
     conditions: ['worker', 'browser'],
-    entryPoints: [path.join(__dirname, 'src', 'worker.ts')],
+    entryPoints: [
+      path.join(__dirname, 'src', 'worker.ts'),
+      path.join(__dirname, 'src', 'index.ts'),
+    ],
     outdir: path.join(__dirname, 'dist'),
     outExtension: { '.js': '.mjs' },
   });
