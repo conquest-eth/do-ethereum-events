@@ -4,6 +4,11 @@
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "./dist",
+    "README.md"
+  ],
   "author": "wighawag <wighawag@gmail.com>",
   "devDependencies": {
     "@cloudflare/workers-types": "^3.13.0",

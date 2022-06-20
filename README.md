@@ -23,9 +23,9 @@ export class MyEthereumEventsDO extends EthereumEventsDO {
   }
 
   // optionaly you can add more endpoint, like a normal DO
-  async fetch(request: Request) {
+  async fetch(request: Request): Promise<Response> {
     ...
-    super.fetch(request);
+    return super.fetch(request);
   }
 
 }

@@ -1,4 +1,4 @@
-import { spaceOutGetRequest, spaceOutGetRequestOptimisitcaly } from './helpers';
+import { spaceOutGetRequestOptimisitcaly } from './helpers';
 import {
   fetchGlobalDO,
   getGlobalDO,
