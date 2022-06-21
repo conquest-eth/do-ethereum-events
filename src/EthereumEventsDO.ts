@@ -393,10 +393,16 @@ export abstract class EthereumEventsDO {
     return createJSONResponse({ events, success: true });
   }
 
-  abstract onEventStream(eventStream: EventWithId[]): void;
+  protected abstract onEventStream(eventStream: EventWithId[]): void;
 
-  async filter(eventsFetched: LogEvent[]): Promise<LogEvent[]> {
+  protected async filter(eventsFetched: LogEvent[]): Promise<LogEvent[]> {
     return eventsFetched;
+  }
+
+  async getStatus(): Promise<Response> {
+    const lastSync = (await this._getLastSync()) || null;
+
+    return createJSONResponse({ status: { lastSync }, success: true });
   }
 
   // --------------------------------------------------------------------------
@@ -423,6 +429,8 @@ export abstract class EthereumEventsDO {
       case 'events':
         const params = parseGETParams(request.url);
         return this.getEvents(params);
+      case 'status':
+        return this.getStatus();
       default: {
         console.log({ patharray, pathname: new URL(request.url).pathname });
         return new Response('Not found', { status: 404 });
