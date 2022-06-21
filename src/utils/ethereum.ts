@@ -1,5 +1,5 @@
 import { BigNumber, Contract, providers, utils } from 'ethers';
-import { deepCopy, LogDescription, zeroPad } from 'ethers/lib/utils';
+import { LogDescription } from 'ethers/lib/utils';
 
 export function isSignatureValid({
   owner,
@@ -14,7 +14,21 @@ export function isSignatureValid({
   return owner.toLowerCase() === addressFromSignature.toLowerCase();
 }
 
-// import {Log} from '@ethersproject/abstract-provider';
+export type RawLog = {
+  blockNumber: string; // 0x
+  blockHash: string;
+  transactionIndex: string; // 0x
+
+  removed: boolean;
+
+  address: string;
+  data: string;
+
+  topics: Array<string>;
+
+  transactionHash: string;
+  logIndex: string; //0x
+};
 interface Log {
   blockNumber: number;
   blockHash: string;
@@ -32,11 +46,10 @@ interface Log {
 }
 
 export interface LogEvent extends Log {
-  event?: string;
-  // The event signature
-  eventSignature?: string;
-  // The parsed arguments to the event
-  args?: Result;
+  name?: string;
+  topic?: string;
+  signature?: string;
+  args?: { [key: string | number]: string | number };
   // If parsing the arguments failed, this is the error
   decodeError?: Error;
 }
@@ -113,8 +126,8 @@ export class LogFetcher {
     fromBlock: number;
     toBlock: number;
     retry?: number;
-  }): Promise<{ logs: Log[]; toBlockUsed: number }> {
-    let logs: Log[];
+  }): Promise<{ logs: RawLog[]; toBlockUsed: number }> {
+    let logs: RawLog[];
 
     const fromBlock = options.fromBlock;
     let toBlock = Math.min(
@@ -273,17 +286,38 @@ export class LogEventFetcher extends LogFetcher {
           (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
         );
       if (correspondingContract) {
-        let event: LogEvent = <LogEvent>deepCopy(log);
+        const event: LogEvent = {
+          blockNumber: parseInt(log.blockNumber.slice(2), 16),
+          blockHash: log.blockHash,
+          transactionIndex: parseInt(log.transactionIndex.slice(2), 16),
+          removed: log.removed ? true : false,
+          address: log.address,
+          data: log.data,
+          topics: log.topics,
+          transactionHash: log.transactionHash,
+          logIndex: parseInt(log.logIndex.slice(2), 16),
+        };
         let parsed: LogDescription | null = null;
         try {
           parsed = correspondingContract.interface.parseLog(log);
         } catch (e) {}
 
-        // Successfully parsed the event log; include it
         if (parsed) {
-          event.args = parsed.args;
-          event.event = parsed.name;
-          event.eventSignature = parsed.signature;
+          // Successfully parsed the event log; include it
+          const args: { [key: string | number]: string | number } = {};
+          const parsedArgsKeys = Object.keys(parsed.args);
+          for (const key of parsedArgsKeys) {
+            // BigNumber to be represented as decimal string
+            let value = parsed.args[key];
+            if ((value as BigNumber)._isBigNumber) {
+              value = value.toString();
+            }
+            args[key] = value;
+          }
+          event.args = args;
+          event.name = parsed.name;
+          event.signature = parsed.signature;
+          event.topic = parsed.topic;
         }
 
         events.push(event);
@@ -303,7 +337,7 @@ export async function getLogs(
   contractAddresses: string[] | null,
   eventNameTopics: (string | string[])[] | null,
   options: { fromBlock: number; toBlock: number },
-): Promise<Log[]> {
+): Promise<RawLog[]> {
   let toBlock = options.toBlock;
   const logs = await provider.send('eth_getLogs', [
     {
