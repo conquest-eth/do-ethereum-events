@@ -13,5 +13,10 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "env.d.ts"]
+  "include": ["src/**/*", "env.d.ts"],
+  "references": [
+    {
+      "path": "node_modules/do-json-db"
+    }
+  ]
 }

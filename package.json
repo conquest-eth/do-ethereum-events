@@ -16,6 +16,7 @@
     "@types/jest": "^27.5.2",
     "@types/node": "^18.0.0",
     "cross-env": "^7.0.3",
+    "do-json-db": "0.0.4",
     "esbuild": "^0.14.46",
     "fs-extra": "^10.1.0",
     "handlebars": "^4.7.7",

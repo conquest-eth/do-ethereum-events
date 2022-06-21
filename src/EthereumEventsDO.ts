@@ -68,6 +68,10 @@ export abstract class EthereumEventsDO {
   async setup(data: ContractSetup) {
     await this._setupContracts();
 
+    if (!data) {
+      throw new Error(`invalid contract data, undefined`);
+    }
+
     if (data.list && data.all) {
       throw new Error(`invalid contract data, use list OR all, ot both`);
     }
@@ -412,6 +416,7 @@ export abstract class EthereumEventsDO {
       try {
         json = await request.json();
       } catch (e) {
+        console.error(`JSON e: ${e}`);
         json = undefined;
       }
     }
