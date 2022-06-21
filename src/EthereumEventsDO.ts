@@ -533,10 +533,18 @@ export abstract class EthereumEventsDO {
     console.log(`ALARM SET`);
   }
 
-  _getEventsMap(
+  async _getEventsMap(
     start: number,
     limit: number,
   ): Promise<Map<string, LogEvent> | undefined> {
+    if (start < 0) {
+      const lastSync = await this._getLastSync();
+      if (!lastSync || lastSync.nextStreamID == 1) {
+        start = 0;
+      } else {
+        start = Math.max(0, lastSync.nextStreamID + start);
+      }
+    }
     return this.state.storage.list<LogEvent>({
       start: `event_${lexicographicNumber15(start)}`,
       limit,
