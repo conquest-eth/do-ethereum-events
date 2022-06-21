@@ -8,20 +8,22 @@ export function days(num: number): number {
 
 export const SECONDS = 1000;
 
-export interface TimeoutPromise<T> extends Promise<T> {
+export interface CancelablePromise<T> extends Promise<T> {
   reject?: () => void;
 }
 
-export function sleep(ms: number): TimeoutPromise<void> {
+export function sleep(ms: number): CancelablePromise<void> {
   let timeout: NodeJS.Timeout | undefined;
   let promiseReject: () => void | undefined;
-  const promise: TimeoutPromise<void> = new Promise<void>((resolve, reject) => {
-    promiseReject = reject;
-    timeout = setTimeout(() => {
-      promise.reject = undefined;
-      resolve();
-    }, ms);
-  });
+  const promise: CancelablePromise<void> = new Promise<void>(
+    (resolve, reject) => {
+      promiseReject = reject;
+      timeout = setTimeout(() => {
+        promise.reject = undefined;
+        resolve();
+      }, ms);
+    },
+  );
   promise.reject = () => {
     if (promise.reject) {
       clearTimeout(timeout);
@@ -35,7 +37,7 @@ export function sleep_then_execute<T>(
   seconds: number,
   func: () => Promise<T>,
   log = false,
-): TimeoutPromise<T> {
+): CancelablePromise<T> {
   const miliseconds = seconds * SECONDS;
   if (seconds === 0) {
     return func();
@@ -45,4 +47,50 @@ export function sleep_then_execute<T>(
     }
     return sleep(miliseconds).then(func);
   }
+}
+
+export async function spaceOutGetRequestAtExactInterval(
+  fetcher: Fetcher,
+  url: string,
+  { interval, duration }: { interval: number; duration: number },
+): CancelablePromise<void> {
+  for (let delay = 0; delay <= duration - interval; delay += interval) {
+    fetcher.fetch(url);
+    await sleep(interval * SECONDS);
+  }
+}
+
+export async function spaceOutGetRequestOptimisitcaly(
+  fetcher: Fetcher,
+  url: string,
+  { interval, duration }: { interval: number; duration: number },
+): CancelablePromise<void> {
+  const timestamp = Date.now();
+  const durationMS = duration * SECONDS;
+  const intervalMS = interval * SECONDS;
+
+  // let debug_counter = 0;
+  let newTimestamp = timestamp;
+  while (newTimestamp < timestamp + durationMS - intervalMS) {
+    await fetcher.fetch(url);
+    // debug_counter++;
+    const now = Date.now();
+    const timePassed = now - newTimestamp;
+    newTimestamp = now;
+    const sleepTime = intervalMS - timePassed;
+    if (sleepTime > 0) {
+      // console.log(
+      //   `was faster than ${interval}s, sleep for ${sleepTime / 1000}s`,
+      // );
+      await sleep(sleepTime);
+      newTimestamp = Date.now();
+    } else {
+      // console.log(
+      //   `was slower than ${interval}s, ${
+      //     (timestamp + durationMS - newTimestamp) / 1000
+      //   }s left`,
+      // );
+    }
+  }
+  // console.log({ debug_counter });
 }

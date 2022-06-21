@@ -1,10 +1,10 @@
-import { spaceOutGetRequestOptimisitcaly } from './helpers';
 import {
   fetchGlobalDO,
   getGlobalDO,
   handleOptions,
   pathFromURL,
 } from './utils/request';
+import { spaceOutGetRequestOptimisitcaly } from './utils/time';
 
 export default {
   async fetch(
@@ -35,6 +35,7 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ) {
+    // NOTE : it is better to do the setTimeout in the Durable Object itself to reduce billed DO invocation
     // 60 seconds is the minimal duration of a CRON job
     spaceOutGetRequestOptimisitcaly(
       getGlobalDO(env.ETHEREUM_EVENTS),

@@ -5,7 +5,7 @@ import {
   parseGETParams,
   pathFromURL,
 } from './utils/request';
-import { SECONDS, sleep_then_execute, TimeoutPromise } from './utils/time';
+import { SECONDS, sleep_then_execute, CancelablePromise } from './utils/time';
 
 function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
@@ -151,7 +151,7 @@ export abstract class EthereumEventsDO {
     }
   }
 
-  processes: TimeoutPromise<any>[] = [];
+  processes: CancelablePromise<any>[] = [];
   async process() {
     if (this.processes.length > 0) {
       for (const process of this.processes) {
@@ -438,7 +438,7 @@ export abstract class EthereumEventsDO {
     }
   }
 
-  alarmProcesses: TimeoutPromise<any>[] = [];
+  alarmProcesses: CancelablePromise<any>[] = [];
   async alarm() {
     if (this.alarmProcesses.length > 0) {
       for (const process of this.alarmProcesses) {
@@ -484,7 +484,7 @@ export abstract class EthereumEventsDO {
   }
 
   async _execute_multiple_process(
-    processes: TimeoutPromise<Response>[],
+    processes: CancelablePromise<Response>[],
     duration: number,
     interval: number,
   ) {
