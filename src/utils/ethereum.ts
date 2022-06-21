@@ -1,20 +1,14 @@
-import { BigNumber, Contract, providers, utils } from 'ethers';
-import { LogDescription } from 'ethers/lib/utils';
+import { EventFragment, Interface } from '@ethersproject/abi';
+import { getAddress } from '@ethersproject/address';
 
-export function isSignatureValid({
-  owner,
-  message,
-  signature,
-}: {
-  owner: string;
-  message: string;
-  signature: string;
-}): boolean {
-  const addressFromSignature = utils.verifyMessage(message, signature);
-  return owner.toLowerCase() === addressFromSignature.toLowerCase();
-}
+type LogDescription = {
+  readonly name: string;
+  readonly signature: string;
+  readonly topic: string;
+  readonly args: Result;
+};
 
-export type RawLog = {
+type RawLog = {
   blockNumber: string; // 0x
   blockHash: string;
   transactionIndex: string; // 0x
@@ -74,25 +68,23 @@ type InternalLogFetcherConfig = {
   numRetry: number;
 };
 
-export function getNewToBlockFromError(err: any): number | undefined {
-  if (err.body) {
-    const json = JSON.parse(err.body);
-    // alchemy API, getting the range that should work
-    // should still fallback on division by 2
-    if (json.error?.code === -32602 && json.error.message) {
-      const regex = /\[.*\]/gm;
-      const result = regex.exec(json.error.message);
-      let values: number[] | undefined;
-      if (result && result[0]) {
-        values = result[0]
-          .slice(1, result[0].length - 1)
-          .split(', ')
-          .map((v) => parseInt(v.slice(2), 16));
-      }
+export function getNewToBlockFromError(error: any): number | undefined {
+  // console.log(`looking into`, error);
+  // console.log(`message: ${error.message}`);
+  // console.log(`code: ${error.code}`);
+  if (error.code === -32602 && error.message) {
+    const regex = /\[.*\]/gm;
+    const result = regex.exec(error.message);
+    let values: number[] | undefined;
+    if (result && result[0]) {
+      values = result[0]
+        .slice(1, result[0].length - 1)
+        .split(', ')
+        .map((v) => parseInt(v.slice(2), 16));
+    }
 
-      if (values && !isNaN(values[1])) {
-        return values[1];
-      }
+    if (values && !isNaN(values[1])) {
+      return values[1];
     }
   }
 }
@@ -101,7 +93,7 @@ export class LogFetcher {
   protected config: InternalLogFetcherConfig;
   protected numBlocksToFetch: number;
   constructor(
-    protected provider: providers.JsonRpcProvider,
+    protected endpoint: string,
     protected contractAddresses: string[] | null,
     protected eventNameTopics: (string | string[])[] | null,
     config: LogFetcherConfig = {},
@@ -144,7 +136,7 @@ export class LogFetcher {
 
     try {
       logs = await getLogs(
-        this.provider,
+        this.endpoint,
         this.contractAddresses,
         this.eventNameTopics,
         {
@@ -234,40 +226,45 @@ export class LogFetcher {
 }
 
 export class LogEventFetcher extends LogFetcher {
-  protected all: Contract | undefined;
+  protected contracts: { address: string; interface: Interface }[] | Interface;
   constructor(
-    protected provider: providers.JsonRpcProvider,
-    protected contracts: Contract[],
+    protected endpoint: string,
+    contractsData:
+      | { address: string; eventsABI: any[] }[]
+      | { eventsABI: any[] },
     config: LogFetcherConfig = {},
   ) {
-    // special case to fetch every event across all contracts
-    // specify only one contract with address == address(0)
-    let contractAddresses: string[] | null = contracts.map((v) => v.address);
-    let eventNameTopics: (string | string[])[] | null = null;
-    if (
-      contracts.length === 1 &&
-      contracts[0].address === '0x0000000000000000000000000000000000000000'
-    ) {
-      contractAddresses = null;
+    let contracts: { address: string; interface: Interface }[] | Interface;
+    let contractAddresses: string[] | null = null;
+    let eventABIS: Interface[];
+    if (Array.isArray(contractsData)) {
+      contracts = contractsData.map((v) => ({
+        address: v.address,
+        interface: new Interface(v.eventsABI),
+      }));
+      contractAddresses = contracts.map((v) => v.address);
+      eventABIS = contracts.map((v) => v.interface);
     } else {
-      eventNameTopics = [];
-      for (const contract of contracts) {
-        for (const eventName of Object.keys(contract.filters)) {
-          const topics = contract.filters[eventName]().topics;
-          if (topics) {
-            const topic = topics[0];
-            if (topic) {
-              eventNameTopics.push(topic);
-            }
+      contracts = new Interface(contractsData.eventsABI);
+      eventABIS = [contracts];
+    }
+
+    let eventNameTopics: string[] | null = null;
+    for (const contract of eventABIS) {
+      for (const fragment of contract.fragments) {
+        if (fragment.type === 'event') {
+          const eventFragment = fragment as EventFragment;
+          const topic = contract.getEventTopic(eventFragment);
+          if (topic) {
+            eventNameTopics = eventNameTopics || [];
+            eventNameTopics.push(topic);
           }
         }
       }
     }
 
-    super(provider, contractAddresses, eventNameTopics, config);
-    if (!contractAddresses) {
-      this.all = contracts[0];
-    }
+    super(endpoint, contractAddresses, eventNameTopics, config);
+    this.contracts = contracts;
   }
 
   async getLogEvents(options: {
@@ -279,12 +276,12 @@ export class LogEventFetcher extends LogFetcher {
     const events: LogEvent[] = [];
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
-      const eventAddress = utils.getAddress(log.address);
-      const correspondingContract =
-        this.all ||
-        this.contracts.find(
-          (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
-        );
+      const eventAddress = getAddress(log.address);
+      const correspondingContract = !Array.isArray(this.contracts)
+        ? this.contracts
+        : this.contracts.find(
+            (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
+          )?.interface;
       if (correspondingContract) {
         const event: LogEvent = {
           blockNumber: parseInt(log.blockNumber.slice(2), 16),
@@ -299,7 +296,7 @@ export class LogEventFetcher extends LogFetcher {
         };
         let parsed: LogDescription | null = null;
         try {
-          parsed = correspondingContract.interface.parseLog(log);
+          parsed = correspondingContract.parseLog(log);
         } catch (e) {}
 
         if (parsed) {
@@ -309,7 +306,10 @@ export class LogEventFetcher extends LogFetcher {
           for (const key of parsedArgsKeys) {
             // BigNumber to be represented as decimal string
             let value = parsed.args[key];
-            if ((value as BigNumber)._isBigNumber) {
+            if (
+              (value as { _isBigNumber?: boolean; toString(): string })
+                ._isBigNumber
+            ) {
               value = value.toString();
             }
             args[key] = value;
@@ -332,20 +332,51 @@ export class LogEventFetcher extends LogFetcher {
   }
 }
 
+export async function getBlockNumber(endpoint: string): Promise<number> {
+  const blockAsHexString = await send<any, string>(
+    endpoint,
+    'eth_blockNumber',
+    [],
+  );
+  return parseInt(blockAsHexString.slice(2), 16);
+}
+
 export async function getLogs(
-  provider: providers.JsonRpcProvider,
+  endpoint: string,
   contractAddresses: string[] | null,
   eventNameTopics: (string | string[])[] | null,
   options: { fromBlock: number; toBlock: number },
 ): Promise<RawLog[]> {
-  let toBlock = options.toBlock;
-  const logs = await provider.send('eth_getLogs', [
+  const logs: RawLog[] = await send<any, RawLog[]>(endpoint, 'eth_getLogs', [
     {
       address: contractAddresses,
-      fromBlock: BigNumber.from(options.fromBlock).toHexString(),
-      toBlock: BigNumber.from(toBlock).toHexString(),
+      fromBlock: '0x' + options.fromBlock.toString(16),
+      toBlock: '0x' + options.toBlock.toString(16),
       topics: eventNameTopics ? [eventNameTopics] : undefined,
     },
   ]);
   return logs;
+}
+
+let counter = 0;
+export async function send<U extends any[], T>(
+  endpoint: string,
+  method: string,
+  params: U,
+): Promise<T> {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: ++counter,
+      jsonrpc: '2.0',
+      method,
+      params,
+    }),
+  });
+  const json: { result?: T; error?: any } = await response.json();
+  if (json.error || !json.result) {
+    throw json.error || { code: 5000, message: 'No Result' };
+  }
+  return json.result;
 }

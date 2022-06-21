@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { send } from '@/utils/ethereum';
 import { EthereumEventsDO, LogEvent } from '../EthereumEventsDO';
 
 export abstract class EthereumEventsDOWithGenericERC721Support extends EthereumEventsDO {
@@ -56,14 +56,19 @@ export abstract class EthereumEventsDOWithGenericERC721Support extends EthereumE
         //   { blockTag: event.blockHash },
         // );
 
-        const response: string = await this.provider.send('eth_call', [
-          {
-            to: event.address,
-            data: '0x01ffc9a780ac58cd00000000000000000000000000000000000000000000000000000000',
-          },
-          { blockHash: event.blockHash },
-        ]);
-        supportsERC721 = BigNumber.from(response).gt(0);
+        const response: string = await send<any, string>(
+          this.nodeEndpoint,
+          'eth_call',
+          [
+            {
+              to: event.address,
+              data: '0x01ffc9a780ac58cd00000000000000000000000000000000000000000000000000000000',
+            },
+            { blockHash: event.blockHash },
+          ],
+        );
+        // TODO check other condition where a non-zero value would not include a one and still be interpreted as a bool
+        supportsERC721 = response.indexOf('1') != -1;
 
         // console.log({ supportsERC721 });
       } catch (err) {

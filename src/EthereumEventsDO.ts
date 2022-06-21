@@ -1,5 +1,4 @@
-import { Contract, ethers } from 'ethers';
-import { LogEventFetcher, LogEvent } from './utils/ethereum';
+import { LogEventFetcher, LogEvent, getBlockNumber } from './utils/ethereum';
 import {
   createJSONResponse,
   parseGETParams,
@@ -48,20 +47,15 @@ export abstract class EthereumEventsDO {
   static scheduled: { interval: number } = { interval: 0 };
 
   logEventFetcher: LogEventFetcher | undefined;
-  provider: ethers.providers.JsonRpcProvider;
+  nodeEndpoint: string;
   contractsData: ContractData[] | AllContractData | undefined;
-  contracts: ethers.Contract[] | undefined;
   finality: number;
 
   /// requires ETHEREUM_NODE
   constructor(protected state: DurableObjectState, protected env: Env) {
     // super(state, env);
     console.log(`ethereum node : ${env.ETHEREUM_NODE}`);
-    this.provider = new ethers.providers.JsonRpcProvider(env.ETHEREUM_NODE);
-    this.provider = new ethers.providers.StaticJsonRpcProvider({
-      url: env.ETHEREUM_NODE,
-      skipFetchSetup: true,
-    });
+    this.nodeEndpoint = env.ETHEREUM_NODE;
     this.finality = 12; // TODO
   }
 
@@ -124,7 +118,6 @@ export abstract class EthereumEventsDO {
 
     if (reset) {
       await this.state.storage.deleteAll();
-      this.contracts = undefined;
       this.contractsData = undefined;
     }
 
@@ -187,7 +180,7 @@ export abstract class EthereumEventsDO {
     try {
       await this._setupContracts();
 
-      if (!this.contractsData || !this.contracts || !this.logEventFetcher) {
+      if (!this.contractsData || !this.logEventFetcher) {
         this.processing = false;
         return new Response('Not Ready');
       }
@@ -220,7 +213,7 @@ export abstract class EthereumEventsDO {
         }
       }
 
-      const latestBlock = await this.provider.getBlockNumber();
+      const latestBlock = await getBlockNumber(this.nodeEndpoint);
 
       let toBlock = latestBlock;
 
@@ -400,7 +393,11 @@ export abstract class EthereumEventsDO {
     const alarm = await this.state.storage.getAlarm();
 
     return createJSONResponse({
-      status: { lastSync, alarm, BUILD_VERSION: process.env.BUILD_VERSION },
+      status: {
+        lastSync,
+        alarm,
+        BUILD_VERSION: (globalThis as any).process.env.BUILD_VERSION,
+      },
       success: true,
     });
   }
@@ -493,31 +490,12 @@ export abstract class EthereumEventsDO {
       this.contractsData = await this.state.storage.get<ContractData[]>(
         '_contracts_',
       );
-    }
-
-    if (!this.contracts && this.contractsData) {
-      this.contracts = [];
-      if (Array.isArray(this.contractsData)) {
-        for (const contractData of this.contractsData) {
-          this.contracts.push(
-            new Contract(
-              contractData.address,
-              contractData.eventsABI,
-              this.provider,
-            ),
-          );
-        }
-      } else {
-        // special case to fetch every event across all contracts
-        // specify only one contract with address == address(0)
-        const contract = new Contract(
-          '0x0000000000000000000000000000000000000000',
-          this.contractsData.eventsABI,
+      if (this.contractsData) {
+        this.logEventFetcher = new LogEventFetcher(
+          this.nodeEndpoint,
+          this.contractsData,
         );
-        this.contracts.push(contract);
       }
-
-      this.logEventFetcher = new LogEventFetcher(this.provider, this.contracts);
     }
   }
 
