@@ -53,7 +53,7 @@ export async function spaceOutGetRequestAtExactInterval(
   fetcher: Fetcher,
   url: string,
   { interval, duration }: { interval: number; duration: number },
-): CancelablePromise<void> {
+): Promise<void> {
   for (let delay = 0; delay <= duration - interval; delay += interval) {
     fetcher.fetch(url);
     await sleep(interval * SECONDS);
@@ -64,7 +64,7 @@ export async function spaceOutGetRequestOptimisitcaly(
   fetcher: Fetcher,
   url: string,
   { interval, duration }: { interval: number; duration: number },
-): CancelablePromise<void> {
+): Promise<void> {
   const timestamp = Date.now();
   const durationMS = duration * SECONDS;
   const intervalMS = interval * SECONDS;
