@@ -447,8 +447,7 @@ export abstract class EthereumEventsDO {
             );
           } finally {
             this.state.storage.setAlarm(
-              timestampInMilliseconds +
-                EthereumEventsDO.alarm.interval * SECONDS,
+              Date.now() + EthereumEventsDO.alarm.interval * SECONDS,
             );
           }
         } else {
