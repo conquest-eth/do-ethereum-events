@@ -153,7 +153,9 @@ export abstract class EthereumEventsDO {
     return new Response('Alarm Disabled');
   }
 
-  async process({ status }: { status?: boolean }): Promise<Response> {
+  async process(
+    { status }: { status?: boolean } = { status: false },
+  ): Promise<Response> {
     if (EthereumEventsDO.scheduled.interval) {
       await spaceOutCallOptimisitcaly(
         async () => {
@@ -363,7 +365,7 @@ export abstract class EthereumEventsDO {
   }: {
     start?: number;
     limit?: number;
-  }): Promise<Response> {
+  } = {}): Promise<Response> {
     if (!start) {
       start = 0;
     }
