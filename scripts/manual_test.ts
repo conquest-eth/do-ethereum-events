@@ -1,7 +1,10 @@
 import 'isomorphic-fetch';
 
+const args = (globalThis as any).process.argv.slice(2);
+const url = args[0] || 'http://localhost:8787/events/setup';
+
 async function main() {
-  await fetch('http://localhost:8787/events/setup', {
+  await fetch(url, {
     method: 'POST',
     body: JSON.stringify({
       list: [

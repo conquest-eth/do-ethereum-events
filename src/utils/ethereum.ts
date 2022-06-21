@@ -108,7 +108,7 @@ export class LogFetcher {
   ) {
     this.config = Object.assign(
       {
-        numBlocksToFetchAtStart: 1000,
+        numBlocksToFetchAtStart: 50,
         percentageToReach: 80,
         maxEventsPerFetch: 10000,
         maxBlocksPerFetch: 100000,

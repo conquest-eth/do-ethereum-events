@@ -44,7 +44,7 @@ type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
 type AllContractData = { eventsABI: any[]; startBlock?: number };
 
 export abstract class EthereumEventsDO {
-  static alarm: { interval?: number } | null = {};
+  static alarm: { interval?: number; individualCall?: boolean } | null = {};
   static scheduled: { interval: number } = { interval: 0 };
 
   logEventFetcher: LogEventFetcher | undefined;
@@ -141,17 +141,19 @@ export abstract class EthereumEventsDO {
     return createJSONResponse({ success: true, reset });
   }
 
-  async triggerAlarm() {
+  async triggerAlarm(): Promise<Response> {
     if (EthereumEventsDO.alarm) {
       // let currentAlarm = await this.state.storage.getAlarm();
       // if (currentAlarm == null) {
       //   this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
       // }
-      this.alarm();
+      await this.alarm();
+      return new Response('Alarm Executed');
     }
+    return new Response('Alarm Disabled');
   }
 
-  async process(): Promise<Response> {
+  async process({ status }: { status?: boolean }): Promise<Response> {
     if (EthereumEventsDO.scheduled.interval) {
       await spaceOutCallOptimisitcaly(
         async () => {
@@ -162,7 +164,11 @@ export abstract class EthereumEventsDO {
     } else {
       await this._execute_one_process();
     }
-    return new Response('Done');
+    if (status) {
+      return this.getStatus();
+    } else {
+      return createJSONResponse({ success: true });
+    }
   }
 
   processing = false;
@@ -385,8 +391,9 @@ export abstract class EthereumEventsDO {
 
   async getStatus(): Promise<Response> {
     const lastSync = (await this._getLastSync()) || null;
+    const alarm = await this.state.storage.getAlarm();
 
-    return createJSONResponse({ status: { lastSync }, success: true });
+    return createJSONResponse({ status: { lastSync, alarm }, success: true });
   }
 
   // --------------------------------------------------------------------------
@@ -413,6 +420,8 @@ export abstract class EthereumEventsDO {
       case 'events':
         const params = parseGETParams(request.url);
         return this.getEvents(params);
+      case 'trigger-alarm':
+        return this.triggerAlarm();
       case 'status':
         return this.getStatus();
       default: {
@@ -425,16 +434,23 @@ export abstract class EthereumEventsDO {
   async alarm() {
     if (EthereumEventsDO.alarm) {
       const timestampInMilliseconds = Date.now();
-      this.state.storage.setAlarm(timestampInMilliseconds + 60 * SECONDS);
-      if (EthereumEventsDO.alarm && EthereumEventsDO.alarm.interval) {
-        await spaceOutCallOptimisitcaly(
-          async () => {
-            await this._execute_one_process();
-          },
-          { interval: EthereumEventsDO.alarm.interval, duration: 60 },
-        );
+      if (!EthereumEventsDO.alarm.individualCall) {
+        this.state.storage.setAlarm(timestampInMilliseconds + 60 * SECONDS);
+        if (EthereumEventsDO.alarm && EthereumEventsDO.alarm.interval) {
+          await spaceOutCallOptimisitcaly(
+            async () => {
+              await this._execute_one_process();
+            },
+            { interval: EthereumEventsDO.alarm.interval, duration: 60 },
+          );
+        } else {
+          await this._execute_one_process();
+        }
       } else {
         await this._execute_one_process();
+        this.state.storage.setAlarm(
+          Date.now() + (EthereumEventsDO.alarm.interval || 30) * SECONDS,
+        );
       }
     }
   }
