@@ -94,3 +94,37 @@ export async function spaceOutGetRequestOptimisitcaly(
   }
   // console.log({ debug_counter });
 }
+
+export async function spaceOutCallOptimisitcaly(
+  func: () => Promise<void>,
+  { interval, duration }: { interval: number; duration: number },
+): Promise<void> {
+  const timestamp = Date.now();
+  const durationMS = duration * SECONDS;
+  const intervalMS = interval * SECONDS;
+
+  // let debug_counter = 0;
+  let newTimestamp = timestamp;
+  while (newTimestamp < timestamp + durationMS - intervalMS) {
+    await func();
+    // debug_counter++;
+    const now = Date.now();
+    const timePassed = now - newTimestamp;
+    newTimestamp = now;
+    const sleepTime = intervalMS - timePassed;
+    if (sleepTime > 0) {
+      // console.log(
+      //   `was faster than ${interval}s, sleep for ${sleepTime / 1000}s`,
+      // );
+      await sleep(sleepTime);
+      newTimestamp = Date.now();
+    } else {
+      // console.log(
+      //   `was slower than ${interval}s, ${
+      //     (timestamp + durationMS - newTimestamp) / 1000
+      //   }s left`,
+      // );
+    }
+  }
+  // console.log({ debug_counter });
+}
