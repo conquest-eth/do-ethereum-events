@@ -11,7 +11,11 @@ function lexicographicNumber15(num: number): string {
   return num.toString().padStart(15, '0');
 }
 
-type ContractSetup = { reset?: boolean; list: ContractData[] };
+type ContractSetup = {
+  reset?: boolean;
+  list?: ContractData[];
+  all?: ContractData;
+};
 
 type EventBlock = {
   number: number;
@@ -35,13 +39,15 @@ type BlockEvents = { hash: string; number: number; events: LogEvent[] };
 
 type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
 
+type AllContractData = { eventsABI: any[]; startBlock?: number };
+
 export abstract class EthereumEventsDO {
   static alarm: { interval?: number } | null = {};
   static scheduled: { interval: number } = { interval: 0 };
 
   logEventFetcher: LogEventFetcher | undefined;
   provider: ethers.providers.JsonRpcProvider;
-  contractsData: ContractData[] | undefined;
+  contractsData: ContractData[] | AllContractData | undefined;
   contracts: ethers.Contract[] | undefined;
   finality: number;
 
@@ -60,30 +66,52 @@ export abstract class EthereumEventsDO {
   async setup(data: ContractSetup) {
     await this._setupContracts();
 
+    if (data.list && data.all) {
+      throw new Error(`invalid contract data, use list OR all, ot both`);
+    }
+    if (!data.list && !data.all) {
+      throw new Error(`invalid contract data, need list or all`);
+    }
+
     // TODO only admin
     let reset = data.reset;
 
     if (!this.contractsData) {
       reset = true;
     } else {
-      for (const contractData of data.list) {
-        if (
-          !this.contractsData.find(
-            (v) =>
-              v.address.toLowerCase() === contractData.address.toLowerCase(),
-          )
-        ) {
+      if (data.list) {
+        if (!Array.isArray(this.contractsData)) {
           reset = true;
-        }
-      }
+        } else {
+          for (const contractData of data.list) {
+            if (
+              !this.contractsData.find(
+                (v) =>
+                  v.address.toLowerCase() ===
+                  contractData.address.toLowerCase(),
+              )
+            ) {
+              reset = true;
+            }
+          }
 
-      for (const contract of this.contractsData) {
-        if (
-          !data.list.find(
-            (v) => v.address.toLowerCase() === contract.address.toLowerCase(),
-          )
-        ) {
+          for (const contract of this.contractsData) {
+            if (
+              !data.list.find(
+                (v) =>
+                  v.address.toLowerCase() === contract.address.toLowerCase(),
+              )
+            ) {
+              reset = true;
+            }
+          }
+        }
+      } else if (data.all) {
+        if (Array.isArray(this.contractsData)) {
           reset = true;
+        } else {
+          reset = false; // TODO allow reset ?
+          // this also applies to list if only eventABI changes
         }
       }
     }
@@ -94,9 +122,14 @@ export abstract class EthereumEventsDO {
       this.contractsData = undefined;
     }
 
-    this.state.storage.put<ContractData[]>('_contracts_', data.list);
+    this.state.storage.put<ContractData[] | AllContractData>(
+      '_contracts_',
+      data.list !== undefined
+        ? (data.list as ContractData[])
+        : (data.all as AllContractData),
+    );
 
-    console.log({ reset, numContracts: data.list.length });
+    console.log({ reset, numContracts: data.list ? data.list.length : ' all' });
 
     // if (EthereumEventsDO.alarm) {
     //   this.state.storage.setAlarm(Date.now() + 1 * SECONDS);
@@ -164,15 +197,20 @@ export abstract class EthereumEventsDO {
       const lastSync = await this._getLastSync();
       let streamID = 0;
       let fromBlock = 0;
-      for (const contractData of this.contractsData) {
-        if (contractData.startBlock) {
-          if (fromBlock === 0) {
-            fromBlock = contractData.startBlock;
-          } else if (contractData.startBlock < fromBlock) {
-            fromBlock = contractData.startBlock;
+      if (Array.isArray(this.contractsData)) {
+        for (const contractData of this.contractsData) {
+          if (contractData.startBlock) {
+            if (fromBlock === 0) {
+              fromBlock = contractData.startBlock;
+            } else if (contractData.startBlock < fromBlock) {
+              fromBlock = contractData.startBlock;
+            }
           }
         }
+      } else {
+        fromBlock = this.contractsData.startBlock || 0;
       }
+
       let unconfirmedBlocks: EventBlock[] = [];
       if (lastSync) {
         unconfirmedBlocks = lastSync.unconfirmedBlocks;
@@ -464,14 +502,24 @@ export abstract class EthereumEventsDO {
 
     if (!this.contracts && this.contractsData) {
       this.contracts = [];
-      for (const contractData of this.contractsData) {
-        this.contracts.push(
-          new Contract(
-            contractData.address,
-            contractData.eventsABI,
-            this.provider,
-          ),
+      if (Array.isArray(this.contractsData)) {
+        for (const contractData of this.contractsData) {
+          this.contracts.push(
+            new Contract(
+              contractData.address,
+              contractData.eventsABI,
+              this.provider,
+            ),
+          );
+        }
+      } else {
+        // special case to fetch every event across all contracts
+        // specify only one contract with address == address(0)
+        const contract = new Contract(
+          '0x0000000000000000000000000000000000000000',
+          this.contractsData.eventsABI,
         );
+        this.contracts.push(contract);
       }
 
       this.logEventFetcher = new LogEventFetcher(this.provider, this.contracts);

@@ -89,7 +89,8 @@ export class LogFetcher {
   protected numBlocksToFetch: number;
   constructor(
     protected provider: providers.JsonRpcProvider,
-    protected contractAddresses: string[],
+    protected contractAddresses: string[] | null,
+    protected eventNameTopics: (string | string[])[] | null,
     config: LogFetcherConfig = {},
   ) {
     this.config = Object.assign(
@@ -129,10 +130,15 @@ export class LogFetcher {
       options.retry !== undefined ? options.retry : this.config.numRetry;
 
     try {
-      logs = await getLogs(this.provider, this.contractAddresses, {
-        fromBlock,
-        toBlock,
-      });
+      logs = await getLogs(
+        this.provider,
+        this.contractAddresses,
+        this.eventNameTopics,
+        {
+          fromBlock,
+          toBlock,
+        },
+      );
     } catch (err: any) {
       console.log(`failed to fetch ${toBlock - fromBlock + 1} blocks`);
       if (retry <= 0) {
@@ -215,16 +221,40 @@ export class LogFetcher {
 }
 
 export class LogEventFetcher extends LogFetcher {
+  protected all: Contract | undefined;
   constructor(
     protected provider: providers.JsonRpcProvider,
     protected contracts: Contract[],
     config: LogFetcherConfig = {},
   ) {
-    super(
-      provider,
-      contracts.map((v) => v.address),
-      config,
-    );
+    // special case to fetch every event across all contracts
+    // specify only one contract with address == address(0)
+    let contractAddresses: string[] | null = contracts.map((v) => v.address);
+    let eventNameTopics: (string | string[])[] | null = null;
+    if (
+      contracts.length === 1 &&
+      contracts[0].address === '0x0000000000000000000000000000000000000000'
+    ) {
+      contractAddresses = null;
+    } else {
+      eventNameTopics = [];
+      for (const contract of contracts) {
+        for (const eventName of Object.keys(contract.filters)) {
+          const topics = contract.filters[eventName]().topics;
+          if (topics) {
+            const topic = topics[0];
+            if (topic) {
+              eventNameTopics.push(topic);
+            }
+          }
+        }
+      }
+    }
+
+    super(provider, contractAddresses, eventNameTopics, config);
+    if (!contractAddresses) {
+      this.all = contracts[0];
+    }
   }
 
   async getLogEvents(options: {
@@ -237,9 +267,11 @@ export class LogEventFetcher extends LogFetcher {
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
       const eventAddress = utils.getAddress(log.address);
-      const correspondingContract = this.contracts.find(
-        (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
-      );
+      const correspondingContract =
+        this.all ||
+        this.contracts.find(
+          (v) => v.address.toLowerCase() === eventAddress.toLowerCase(),
+        );
       if (correspondingContract) {
         let event: LogEvent = <LogEvent>deepCopy(log);
         let parsed: LogDescription | null = null;
@@ -268,21 +300,17 @@ export class LogEventFetcher extends LogFetcher {
 
 export async function getLogs(
   provider: providers.JsonRpcProvider,
-  contracts: string[],
+  contractAddresses: string[] | null,
+  eventNameTopics: (string | string[])[] | null,
   options: { fromBlock: number; toBlock: number },
 ): Promise<Log[]> {
   let toBlock = options.toBlock;
   const logs = await provider.send('eth_getLogs', [
     {
-      address: contracts,
+      address: contractAddresses,
       fromBlock: BigNumber.from(options.fromBlock).toHexString(),
       toBlock: BigNumber.from(toBlock).toHexString(),
-      //   topics: [
-      //     [
-      //       // topic[0]
-      //       contract.filters.EventName().topics[0],
-      //     ],
-      //   ],
+      topics: eventNameTopics ? [eventNameTopics] : undefined,
     },
   ]);
   return logs;
