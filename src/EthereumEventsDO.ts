@@ -443,9 +443,10 @@ export abstract class EthereumEventsDO {
 
   async alarm() {
     if (EthereumEventsDO.alarm) {
+      console.log(`interval : ${EthereumEventsDO.alarm.interval}s`);
       const timestampInMilliseconds = Date.now();
       if (!EthereumEventsDO.alarm.individualCall) {
-        if (EthereumEventsDO.alarm && EthereumEventsDO.alarm.interval) {
+        if (EthereumEventsDO.alarm.interval) {
           try {
             await spaceOutCallOptimisitcaly(
               async () => {
@@ -459,7 +460,7 @@ export abstract class EthereumEventsDO {
             );
           }
         } else {
-          await this._setAlarmDelta(60 * SECONDS);
+          await this._setAlarmDelta(30 * SECONDS);
           await this._execute_one_process();
         }
       } else {
@@ -521,7 +522,7 @@ export abstract class EthereumEventsDO {
   }
 
   async _setAlarmDelta(delta: number): Promise<void> {
-    const alarmTime = Date.now() + delta + 10 * SECONDS; // TODO remove extra 10
+    const alarmTime = Date.now() + delta;
     console.log(`ALARM DELTA: ${delta / 1000}s`);
     await this._setAlarm(alarmTime);
   }

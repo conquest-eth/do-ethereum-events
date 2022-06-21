@@ -6,12 +6,13 @@
     "types": ["@cloudflare/workers-types"],
     "moduleResolution": "node",
     "strict": true,
-    "noEmit": true,
+    // "noEmit": true,
     "esModuleInterop": true,
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "composite": true
   },
   "include": ["src/**/*", "env.d.ts"],
   "references": [

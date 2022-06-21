@@ -1,3 +1,4 @@
 - [x] helpers for interval on scheduled calls
 - [x] export classes
 - [x] implement getLogger class with memory on request size, + option to store it in Durable Object ?
+- [ ] feed setup, where a local script can provide the data in batches, data is still the LogEvent and the worker/DO process them as usual

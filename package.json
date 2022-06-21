@@ -1,6 +1,6 @@
 {
   "name": "ethereum-events-do",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
@@ -8,6 +8,7 @@
   "files": [
     "dist/**/*",
     "src/**/*",
+    "tsconfig.json",
     "README.md"
   ],
   "author": "wighawag <wighawag@gmail.com>",
