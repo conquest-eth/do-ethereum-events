@@ -41,7 +41,7 @@ export default {
     await spaceOutGetRequestOptimisitcaly(
       getGlobalDO(env.ETHEREUM_EVENTS),
       'http://localhost/events/process',
-      { interval: 12, duration: 25 },
+      { interval: 9, duration: 59 },
     );
     console.log('SCHEDULED DONE');
     // await getGlobalDO(env.ETHEREUM_EVENTS).fetch('http://localhost/process');

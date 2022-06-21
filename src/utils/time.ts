@@ -82,6 +82,10 @@ export async function spaceOutGetRequestOptimisitcaly(
       console.log(
         `was faster than ${interval}s, sleep for ${sleepTime / 1000}s`,
       );
+      if (newTimestamp + sleepTime >= timestamp + durationMS - intervalMS) {
+        console.log(`time over if sleep ${sleepTime / 1000}s`);
+        break;
+      }
       await sleep(sleepTime);
       newTimestamp = Date.now();
     } else {
