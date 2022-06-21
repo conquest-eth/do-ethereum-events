@@ -35,6 +35,8 @@ export type EventWithId = LogEvent & {
   streamID: number;
 };
 
+export { LogEvent } from './utils/ethereum';
+
 type BlockEvents = { hash: string; number: number; events: LogEvent[] };
 
 type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
@@ -233,12 +235,14 @@ export abstract class EthereumEventsDO {
       }
 
       console.log(`fetching...`);
-      const { events: newEvents, toBlockUsed: newToBlock } =
+      const { events: eventsFetched, toBlockUsed: newToBlock } =
         await this.logEventFetcher.getLogEvents({
           fromBlock,
           toBlock: toBlock,
         });
       toBlock = newToBlock;
+
+      const newEvents = await this.filter(eventsFetched);
 
       console.log({
         latestBlock,
@@ -334,7 +338,7 @@ export abstract class EthereumEventsDO {
       for (const event of eventStream) {
         entriesInGroupOf128[`event_${lexicographicNumber15(event.streamID)}`] =
           event;
-        delete (event as any).streamID; // TODO typing
+        // TODO remove streamID to not waste space ?
         counter++;
         if (counter == 128) {
           this.state.storage.put<LogEvent>(entriesInGroupOf128);
@@ -390,6 +394,10 @@ export abstract class EthereumEventsDO {
   }
 
   abstract onEventStream(eventStream: EventWithId[]): void;
+
+  async filter(eventsFetched: LogEvent[]): Promise<LogEvent[]> {
+    return eventsFetched;
+  }
 
   // --------------------------------------------------------------------------
   // ENTRY POINTS
