@@ -449,18 +449,18 @@ export abstract class EthereumEventsDO {
               { interval: EthereumEventsDO.alarm.interval, duration: 60 },
             );
           } finally {
-            this.state.storage.setAlarm(
-              Date.now() + EthereumEventsDO.alarm.interval * SECONDS,
+            await this._setAlarmDelta(
+              EthereumEventsDO.alarm.interval * SECONDS,
             );
           }
         } else {
-          this.state.storage.setAlarm(timestampInMilliseconds + 60 * SECONDS);
+          await this._setAlarmDelta(60 * SECONDS);
           await this._execute_one_process();
         }
       } else {
         await this._execute_one_process();
-        this.state.storage.setAlarm(
-          Date.now() + (EthereumEventsDO.alarm.interval || 30) * SECONDS,
+        await this._setAlarmDelta(
+          (EthereumEventsDO.alarm.interval || 30) * SECONDS,
         );
       }
     }
@@ -512,6 +512,15 @@ export abstract class EthereumEventsDO {
 
       this.logEventFetcher = new LogEventFetcher(this.provider, this.contracts);
     }
+  }
+
+  async _setAlarmDelta(delta: number): Promise<void> {
+    const alarmTime = Date.now() + delta;
+    this._setAlarm(alarmTime);
+  }
+  async _setAlarm(alarmTime: number): Promise<void> {
+    console.log(`ALARM TIME: ${alarmTime}`);
+    await this.state.storage.setAlarm(alarmTime);
   }
 
   _getEventsMap(
