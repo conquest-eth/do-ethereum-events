@@ -19,8 +19,8 @@ const worker: ExportedHandler<Env> = {
 export { WebSocketEthereumEventsDO as EthereumEventsDO } from './implementations/WebSocketEthereumEventsDO';
 // EthereumEventsDO.alarm = { interval: 6 };
 // EthereumEventsDO.alarm = { interval: 6, individualCall: true };
-// EthereumEventsDO.alarm = null;
-EthereumEventsDO.scheduled = { interval: 6 };
+EthereumEventsDO.alarm = null;
+// EthereumEventsDO.scheduled = { interval: 6 };
 // EthereumEventsDO.scheduled = {interval: 0};
 
 // export worker

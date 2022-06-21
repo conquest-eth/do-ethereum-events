@@ -79,18 +79,19 @@ export async function spaceOutGetRequestOptimisitcaly(
     newTimestamp = now;
     const sleepTime = intervalMS - timePassed;
     if (sleepTime > 0) {
-      // console.log(
-      //   `was faster than ${interval}s, sleep for ${sleepTime / 1000}s`,
-      // );
+      console.log(
+        `was faster than ${interval}s, sleep for ${sleepTime / 1000}s`,
+      );
       await sleep(sleepTime);
       newTimestamp = Date.now();
     } else {
-      // console.log(
-      //   `was slower than ${interval}s, ${
-      //     (timestamp + durationMS - newTimestamp) / 1000
-      //   }s left`,
-      // );
+      console.log(
+        `was slower than ${interval}s, ${
+          (timestamp + durationMS - newTimestamp) / 1000
+        }s left`,
+      );
     }
+    console.log(`time spent: ${(newTimestamp - timestamp) / 1000}s`);
   }
   // console.log({ debug_counter });
 }

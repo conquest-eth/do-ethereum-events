@@ -38,11 +38,12 @@ export default {
     // NOTE : it is better to do the setTimeout in the Durable Object itself to reduce billed DO invocation
     //  and actually the best is alarm, see : https://github.com/cloudflare/miniflare/issues/290#issuecomment-1160920429
     // 60 seconds is the minimal duration of a CRON job
-    spaceOutGetRequestOptimisitcaly(
+    await spaceOutGetRequestOptimisitcaly(
       getGlobalDO(env.ETHEREUM_EVENTS),
-      'http://localhost/process',
-      { interval: 6, duration: 60 },
+      'http://localhost/events/process',
+      { interval: 12, duration: 25 },
     );
+    console.log('SCHEDULED DONE');
     // await getGlobalDO(env.ETHEREUM_EVENTS).fetch('http://localhost/process');
   },
 };
