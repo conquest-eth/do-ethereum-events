@@ -437,15 +437,22 @@ export abstract class EthereumEventsDO {
     if (EthereumEventsDO.alarm) {
       const timestampInMilliseconds = Date.now();
       if (!EthereumEventsDO.alarm.individualCall) {
-        this.state.storage.setAlarm(timestampInMilliseconds + 60 * SECONDS);
         if (EthereumEventsDO.alarm && EthereumEventsDO.alarm.interval) {
-          await spaceOutCallOptimisitcaly(
-            async () => {
-              await this._execute_one_process();
-            },
-            { interval: EthereumEventsDO.alarm.interval, duration: 60 },
-          );
+          try {
+            await spaceOutCallOptimisitcaly(
+              async () => {
+                await this._execute_one_process();
+              },
+              { interval: EthereumEventsDO.alarm.interval, duration: 60 },
+            );
+          } finally {
+            this.state.storage.setAlarm(
+              timestampInMilliseconds +
+                EthereumEventsDO.alarm.interval * SECONDS,
+            );
+          }
         } else {
+          this.state.storage.setAlarm(timestampInMilliseconds + 60 * SECONDS);
           await this._execute_one_process();
         }
       } else {
