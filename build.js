@@ -19,6 +19,9 @@ try {
     ],
     outdir: path.join(__dirname, 'dist'),
     outExtension: { '.js': '.mjs' },
+    define: {
+      'process.env.BUILD_VERSION': Math.floor(Date.now() / 1000),
+    },
   });
 } catch {
   process.exitCode = 1;

@@ -395,7 +395,10 @@ export abstract class EthereumEventsDO {
     const lastSync = (await this._getLastSync()) || null;
     const alarm = await this.state.storage.getAlarm();
 
-    return createJSONResponse({ status: { lastSync, alarm }, success: true });
+    return createJSONResponse({
+      status: { lastSync, alarm, BUILD_VERSION: process.env.BUILD_VERSION },
+      success: true,
+    });
   }
 
   // --------------------------------------------------------------------------
