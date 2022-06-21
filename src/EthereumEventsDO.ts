@@ -410,15 +410,15 @@ export abstract class EthereumEventsDO {
         json = undefined;
       }
     }
+    const params = parseGETParams(request.url);
     // take the last path so that user can choose their prefix
     switch (patharray[patharray.length - 1]) {
       case 'setup':
         return this.setup(json as ContractSetup);
       case 'process':
-        return this.process();
+        return this.process(params);
       case 'list':
       case 'events':
-        const params = parseGETParams(request.url);
         return this.getEvents(params);
       case 'trigger-alarm':
         return this.triggerAlarm();
