@@ -466,6 +466,10 @@ export abstract class EthereumEventsDO {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // INTERNAL
+  // --------------------------------------------------------------------------
+
   async _execute_one_process(): Promise<Response> {
     let response: Response | undefined;
     try {
@@ -477,9 +481,6 @@ export abstract class EthereumEventsDO {
     }
     return response;
   }
-  // --------------------------------------------------------------------------
-  // INTERNAL
-  // --------------------------------------------------------------------------
 
   async _setupContracts() {
     if (!this.contractsData) {
@@ -515,12 +516,21 @@ export abstract class EthereumEventsDO {
   }
 
   async _setAlarmDelta(delta: number): Promise<void> {
-    const alarmTime = Date.now() + delta;
-    this._setAlarm(alarmTime);
+    const alarmTime = Date.now() + delta + 10 * SECONDS; // TODO remove extra 10
+    console.log(`ALARM DELTA: ${delta / 1000}s`);
+    await this._setAlarm(alarmTime);
   }
   async _setAlarm(alarmTime: number): Promise<void> {
     console.log(`ALARM TIME: ${alarmTime}`);
+    const existingAlarm = await this.state.storage.getAlarm();
+    console.log(`EXISTING ALARM: ${existingAlarm}`);
+    if (existingAlarm) {
+      console.log(`DELETING ALARM`);
+      await this.state.storage.deleteAlarm();
+    }
+    console.log(`SETTING ALAR`);
     await this.state.storage.setAlarm(alarmTime);
+    console.log(`ALARM SET`);
   }
 
   _getEventsMap(
