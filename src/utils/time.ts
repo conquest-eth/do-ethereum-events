@@ -13,7 +13,7 @@ export interface CancelablePromise<T> extends Promise<T> {
 }
 
 export function sleep(ms: number): CancelablePromise<void> {
-  let timeout: NodeJS.Timeout | undefined;
+  let timeout: number | null = null;
   let promiseReject: () => void | undefined;
   const promise: CancelablePromise<void> = new Promise<void>(
     (resolve, reject) => {
