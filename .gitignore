@@ -1,5 +1,6 @@
-dist/
 node_modules/
+.mf/
+dist/
 wrangler.toml
 .vscode/*
 scripts/.*
