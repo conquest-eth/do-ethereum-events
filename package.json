@@ -1,6 +1,6 @@
 {
-  "name": "ethereum-events-do",
-  "version": "0.0.8",
+  "name": "do-ethereum-events",
+  "version": "0.1.0",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
@@ -22,7 +22,6 @@
     "fs-extra": "^10.1.0",
     "handlebars": "^4.7.7",
     "isomorphic-fetch": "^3.0.0",
-    "itty-router": "^2.6.1",
     "jest": "^28.1.1",
     "jest-environment-miniflare": "^2.5.1",
     "miniflare": "^2.5.1",
@@ -43,7 +42,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/conquest-eth/ethereum-events-do"
+    "url": "git+https://github.com/conquest-eth/do-ethereum-events"
   },
   "volta": {
     "node": "16.13.1"

@@ -4,8 +4,3 @@ interface Env {
   ETHEREUM_NODE: string;
   DATA_DOG_API_KEY: string;
 }
-
-interface CronTrigger {
-  cron: string;
-  scheduledTime: number;
-}
