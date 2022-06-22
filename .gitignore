@@ -1,7 +1,8 @@
 dist/
 node_modules/
-.env
 wrangler.toml
 .vscode/*
-!.vscode/*.default
 scripts/.*
+
+.env*
+!*.default
