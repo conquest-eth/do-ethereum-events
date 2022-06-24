@@ -1,9 +1,8 @@
 import 'isomorphic-fetch';
 
 const args = (globalThis as any).process.argv.slice(2);
-const url = args[0] || 'http://localhost:8787/events/feed';
-
-const folder = 'logs';
+const folder = args[0];
+const url = args[1] || 'http://localhost:8787/events/feed';
 
 async function main() {
   const fsName = 'fs';
@@ -11,7 +10,6 @@ async function main() {
 
   const files = fs.readdirSync(folder);
   const eventFiles = files.filter((v: string) => v.startsWith('events_'));
-  let counter = 0;
   if (eventFiles.length > 0) {
     for (const file of eventFiles) {
       const eventStream = JSON.parse(

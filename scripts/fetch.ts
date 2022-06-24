@@ -1,6 +1,10 @@
 import 'isomorphic-fetch';
-import { EventBlock, LastSync } from '../src/EthereumEventsDO';
-import { getBlockNumber, LogEventFetcher } from '../src/utils/ethereum';
+import { EventBlock, LastSync, LogEvent } from '../src/EthereumEventsDO';
+import {
+  createER721Filter,
+  getBlockNumber,
+  LogEventFetcher,
+} from '../src/utils/ethereum';
 import { LocalEthereumEventsDO } from './LocalEthereumEventsDO';
 
 const process = (globalThis as any).process;
@@ -11,13 +15,18 @@ function lexicographicNumber15(num: number): string {
 
 const args = process.argv.slice(2);
 const dataFilepath = args[0];
+const folder = args[1];
+
+if (!folder) {
+  console.error(`need to specify folder as second arg`);
+  process.exit(1);
+}
 
 async function main() {
   const fsName = 'fs';
   const fs = await import(fsName);
   const dataFromFile = JSON.parse(fs.readFileSync(dataFilepath).toString());
 
-  const folder = 'logs';
   try {
     fs.mkdirSync(folder);
   } catch (e) {}
@@ -25,6 +34,8 @@ async function main() {
   const endpoint = process.env.ETHEREUM_NODE;
 
   const logEventFetcher = new LogEventFetcher(endpoint, dataFromFile);
+
+  const erc721Filter = createER721Filter(endpoint);
 
   async function fetchAndProcess(
     endpoint: string,
@@ -74,6 +85,16 @@ async function main() {
 
     if (fromBlock > toBlock) {
       console.log(`no new block yet, skip`);
+      fs.writeFileSync(
+        folder + `/lastSync.json`,
+        JSON.stringify({
+          enabled: true,
+          latestBlock,
+          lastToBlock: toBlock,
+          nextStreamID: streamID,
+          unconfirmedBlocks: [],
+        }),
+      );
       return {
         newCounter: counter,
         message: 'no new block yet, skip',
@@ -89,15 +110,24 @@ async function main() {
       });
     toBlock = newToBlock;
 
-    // TODO ?
-    // const newEvents = await this.filter(eventsFetched);
+    const newEvents = await erc721Filter(eventsFetched);
 
-    if (eventsFetched.length == 0) {
+    if (newEvents.length == 0) {
+      fs.writeFileSync(
+        folder + `/lastSync.json`,
+        JSON.stringify({
+          enabled: true,
+          latestBlock,
+          lastToBlock: toBlock,
+          nextStreamID: streamID,
+          unconfirmedBlocks: [],
+        }),
+      );
       return { newCounter: counter, message: 'No Events' };
     }
 
     const eventStream = [];
-    for (const event of eventsFetched) {
+    for (const event of newEvents) {
       eventStream.push({ ...event, streamID });
       streamID++;
     }
