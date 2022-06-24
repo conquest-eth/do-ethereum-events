@@ -19,5 +19,10 @@
     {
       "path": "node_modules/do-json-db"
     }
-  ]
+  ],
+  "ts-node": {
+    "files": true,
+    "types": ["@cloudflare/workers-types", "@types/node"]
+  },
+  "files": ["env.d.ts"]
 }

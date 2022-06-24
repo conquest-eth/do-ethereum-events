@@ -19,7 +19,7 @@ export class EthereumEventsStore extends EthereumEventsDOWithGenericERC721Suppor
     return createJSONResponse({ result, success: true });
   }
 
-  onEventStream(eventStream: EventWithId[]) {
+  async onEventStream(eventStream: EventWithId[]) {
     for (const event of eventStream) {
       if (event.name === 'Transfer') {
         if (event.args) {
@@ -31,7 +31,7 @@ export class EthereumEventsStore extends EthereumEventsDOWithGenericERC721Suppor
             typeName: 'Token',
             owner: to,
           };
-          console.log(token);
+          // console.log(token);
           this.store.put(token);
         }
       }

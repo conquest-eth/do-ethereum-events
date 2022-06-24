@@ -3,7 +3,8 @@ node_modules/
 dist/
 wrangler.toml
 .vscode/*
-scripts/.*
+scripts/**/.*
 
 .env*
 !*.default
+logs

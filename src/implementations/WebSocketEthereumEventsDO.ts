@@ -9,7 +9,7 @@ export class WebSocketEthereumEventsDO extends EthereumEventsDOWithGenericERC721
     super(state, env);
   }
 
-  onEventStream(eventStream: EventWithId[]) {
+  async onEventStream(eventStream: EventWithId[]) {
     const message = JSON.stringify(eventStream);
 
     // Iterate over all the sessions sending them messages.

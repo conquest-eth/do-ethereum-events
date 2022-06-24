@@ -18,7 +18,7 @@ export class MyEthereumEventsDO extends EthereumEventsDO {
     super(state, env);
   }
 
-  onEventStream(eventStream: EventWithId[]) {
+  async onEventStream(eventStream: EventWithId[]) {
     // TODO whatever you want
   }
 
@@ -75,20 +75,47 @@ You also need to export its class (as shown above) and declare it in the wrangle
 
 for example:
 
-```toml
+```txt
 ...
 [durable_objects]
 bindings = [{name = "ETHEREUM_EVENTS", class_name = "EthereumEventsDO"}]
 ...
 ```
 
+### Setup data
+
+to setup the worker to process events, you need to send a POST request to `events/setup`. its type is
+
+```typescript
+type ContractData = { eventsABI: any[]; address: string; startBlock?: number };
+type AllContractData = { eventsABI: any[]; startBlock?: number };
+
+type ContractSetup = {
+  reset?: boolean;
+  start?: boolean;
+  list?: ContractData[];
+  all?: AllContractData;
+};
+```
+
+- `reset` will force a reset, deleting all data, this will also happen if new contracts are added
+- `start` will trigger the fetching. if not set, you'll have to GET fetch `events/start`
+- `list` or `all` need to be specified, not both
+- `list` expect a list of contract data (abi, address and starting block)
+- `all` expect a single (abi and starting block), no address as it will listen to all events across the chain matching the abi
+
 ### frequency of updates
 
-By default the DO use cloudflare worker alarm and these are called every 30s at max.
+By default the DO use cloudflare worker alarm and these are called 30s by default
+
 To disable the alarm : `EthereumEventsDO.alarm = null;`
+
 To set a specific interval that the DO will try to perform : `EthereumEventsDO.alarm = { interval: 6 };`
 
-If you disable the alarm, the events won't be processed. the DO also expose a `process` endpoint and you can call it in a worker CRON handler instead
+If you disable the alarm, the events won't be processed, (even if it was started with `start`)
+
+The DO also expose a `fetchLogsAndProcess` endpoint and you can call it in a worker CRON handler instead
+
 CRON have a resolution of 1 minite so you ll need to also call it several time
 
 The DO can do that for your automatically via : `EthereumEventsDO.scheduled = {interval: 6}`

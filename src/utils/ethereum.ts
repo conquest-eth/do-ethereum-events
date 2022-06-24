@@ -8,7 +8,7 @@ type LogDescription = {
   readonly args: Result;
 };
 
-type RawLog = {
+export type RawLog = {
   blockNumber: string; // 0x
   blockHash: string;
   transactionIndex: string; // 0x
@@ -273,6 +273,11 @@ export class LogEventFetcher extends LogFetcher {
     retry?: number;
   }): Promise<{ events: LogEvent[]; toBlockUsed: number }> {
     const { logs, toBlockUsed } = await this.getLogs(options);
+    const events = this.parse(logs);
+    return { events, toBlockUsed };
+  }
+
+  parse(logs: RawLog[]): LogEvent[] {
     const events: LogEvent[] = [];
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
@@ -328,7 +333,7 @@ export class LogEventFetcher extends LogFetcher {
           (globalThis as any).logger.error(`unknown contract: ${eventAddress}`);
       }
     }
-    return { events, toBlockUsed };
+    return events;
   }
 }
 
