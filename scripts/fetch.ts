@@ -1,11 +1,10 @@
 import 'isomorphic-fetch';
-import { EventBlock, LastSync, LogEvent } from '../src/EthereumEventsDO';
+import { LastSync } from '../src/EthereumEventsDO';
 import {
   createER721Filter,
   getBlockNumber,
   LogEventFetcher,
 } from '../src/utils/ethereum';
-import { LocalEthereumEventsDO } from './LocalEthereumEventsDO';
 
 const process = (globalThis as any).process;
 
@@ -35,12 +34,13 @@ async function main() {
 
   const logEventFetcher = new LogEventFetcher(endpoint, dataFromFile);
 
-  const erc721Filter = createER721Filter(endpoint);
+  const erc721Filter = createER721Filter(endpoint, {
+    skipUnParsedEvents: true,
+  });
 
   async function fetchAndProcess(
     endpoint: string,
-    counter: number,
-  ): Promise<{ newCounter: number; message?: string; code?: number }> {
+  ): Promise<{ message?: string; code?: number }> {
     let lastSync: LastSync;
     try {
       lastSync = JSON.parse(
@@ -96,7 +96,6 @@ async function main() {
         }),
       );
       return {
-        newCounter: counter,
         message: 'no new block yet, skip',
         code: 1111,
       };
@@ -123,7 +122,7 @@ async function main() {
           unconfirmedBlocks: [],
         }),
       );
-      return { newCounter: counter, message: 'No Events' };
+      return { message: 'No Events' };
     }
 
     const eventStream = [];
@@ -146,29 +145,18 @@ async function main() {
         unconfirmedBlocks: [],
       }),
     );
-    return { newCounter: counter + 1 };
+    return {};
   }
 
   let done = false;
-  const files = fs.readdirSync(folder);
-  const eventFiles = files.filter((v: string) => v.startsWith('events_'));
-  let counter = 0;
-  if (eventFiles.length > 0) {
-    const lastEventFile = eventFiles[eventFiles.length - 1];
-    const underscoreIndex = lastEventFile.indexOf('_');
-    const dotIndex = lastEventFile.indexOf('.');
-    const substr = lastEventFile.substring(underscoreIndex + 1, dotIndex);
-    counter = parseInt(substr);
-  }
   while (!done) {
-    const result = await fetchAndProcess(endpoint, counter);
+    const result = await fetchAndProcess(endpoint);
     if (result.message) {
       console.log(result);
     }
     if (result.code === 1111) {
       done = true;
     }
-    counter = result.newCounter;
   }
 }
 main();

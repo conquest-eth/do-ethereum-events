@@ -386,11 +386,176 @@ export async function send<U extends any[], T>(
   return json.result;
 }
 
+export async function sendWithChecks<U extends any[], T>(
+  endpoint: string,
+  method: string,
+  params: U,
+): Promise<T> {
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: ++counter,
+        jsonrpc: '2.0',
+        method,
+        params,
+      }),
+    });
+
+    const clone = response.clone();
+
+    try {
+      const json: { result?: T; error?: any } = await response.json();
+      if (json.error || !json.result) {
+        throw json.error || { code: 5000, message: 'No Result' };
+      }
+      return json.result;
+    } catch (err) {
+      const text = await clone.text();
+      console.log('TEXT');
+      console.log(text);
+      throw err;
+    }
+  } catch (err) {
+    console.log(`ERRROR`);
+    console.log(response);
+    throw err;
+  }
+}
+
+const multicallInterface = new Interface([
+  {
+    inputs: [
+      {
+        internalType: 'contract IERC165[]',
+        name: 'contracts',
+        type: 'address[]',
+      },
+      {
+        internalType: 'bytes4',
+        name: 'interfaceId',
+        type: 'bytes4',
+      },
+    ],
+    name: 'supportsInterface',
+    outputs: [
+      {
+        internalType: 'bool[]',
+        name: 'result',
+        type: 'bool[]',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'contract IERC165[]',
+        name: 'contracts',
+        type: 'address[]',
+      },
+      {
+        internalType: 'bytes4[]',
+        name: 'interfaceIds',
+        type: 'bytes4[]',
+      },
+    ],
+    name: 'supportsMultipleInterfaces',
+    outputs: [
+      {
+        internalType: 'bool[]',
+        name: 'result',
+        type: 'bool[]',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+]);
+
+export function getmMulti165CallData(contractAddresses: string[]): {
+  to: string;
+  data: string;
+} {
+  const data = multicallInterface.encodeFunctionData('supportsInterface', [
+    contractAddresses,
+    '0x80ac58cd',
+  ]);
+  return { to: '0x9f83e74173A34d59D0DFa951AE22336b835AB196', data };
+}
+
+export async function multi165(
+  endpoint: string,
+  contractAddresses: string[],
+): Promise<boolean[]> {
+  console.log(
+    `checking ${contractAddresses.length} contracts for ERC721 via ERC165...`,
+  );
+  const callData = getmMulti165CallData(contractAddresses);
+  // TODO specify blockHash for event post the deployment of Multi165 ?
+  // console.log(contractAddresses);
+  const response = await send<any, string>(endpoint, 'eth_call', [
+    { ...callData, gas: '0x' + (28000000).toString(16) },
+  ]);
+  const result: boolean[] = multicallInterface.decodeFunctionResult(
+    'supportsInterface',
+    response,
+  )[0];
+  // console.log(result);
+  console.log(` => found ${result.filter((v) => v).length} ERC721 contracts`);
+  return result;
+}
+
+export async function splitCallAndJoin(
+  endpoint: string,
+  contractAddresses: string[],
+) {
+  let result: boolean[] = [];
+  const len = contractAddresses.length;
+  let start = 0;
+  while (start < len) {
+    const end = Math.min(start + 800, len);
+    const addresses = contractAddresses.slice(start, end);
+    const tmp = await multi165(endpoint, addresses);
+    result = result.concat(tmp);
+    start = end;
+  }
+  return result;
+}
+
 export function createER721Filter(
   endpoint: string,
+  options?: { skipUnParsedEvents?: boolean },
 ): (eventsFetched: LogEvent[]) => Promise<LogEvent[]> {
   const erc721Contracts: { [address: string]: boolean } = {};
   return async (eventsFetched: LogEvent[]): Promise<LogEvent[]> => {
+    const addressesMap: { [address: string]: true } = {};
+    const addressesToCheck: string[] = [];
+
+    if (options?.skipUnParsedEvents) {
+      eventsFetched = eventsFetched.filter((v) => !!v.args);
+    }
+
+    for (const event of eventsFetched) {
+      if (
+        !erc721Contracts[event.address.toLowerCase()] &&
+        !addressesMap[event.address.toLowerCase()]
+      ) {
+        addressesToCheck.push(event.address);
+        addressesMap[event.address.toLowerCase()] = true;
+      }
+    }
+    if (addressesToCheck.length > 0) {
+      console.log(`${addressesToCheck.length} addresses need to be checked...`);
+      const responses = await splitCallAndJoin(endpoint, addressesToCheck);
+      for (let i = 0; i < addressesToCheck.length; i++) {
+        erc721Contracts[addressesToCheck[i]] = responses[i];
+      }
+    }
+
     const events = [];
     for (const event of eventsFetched) {
       const inCache = erc721Contracts[event.address.toLowerCase()];
@@ -399,58 +564,6 @@ export function createER721Filter(
         continue;
       } else if (inCache === false) {
         continue;
-      }
-
-      console.log(
-        `new contract found : ${event.address}, checking support for erc721...`,
-      );
-      // const contract = new Contract(
-      //   event.address,
-      //   [
-      //     {
-      //       inputs: [
-      //         { internalType: 'bytes4', name: '_interfaceId', type: 'bytes4' },
-      //       ],
-      //       name: 'supportsInterface',
-      //       outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
-      //       stateMutability: 'view',
-      //       type: 'function',
-      //     },
-      //   ],
-      //   this.provider,
-      // );
-      let supportsERC721 = false;
-      try {
-        // supportsERC721 = await contract.callStatic.supportsInterface(
-        //   '0x80ac58cd',
-        //   { blockTag: event.blockHash },
-        // );
-
-        const response: string = await send<any, string>(endpoint, 'eth_call', [
-          {
-            to: event.address,
-            data: '0x01ffc9a780ac58cd00000000000000000000000000000000000000000000000000000000',
-          },
-          { blockHash: event.blockHash },
-        ]);
-        // TODO check other condition where a non-zero value would not include a one and still be interpreted as a bool
-        supportsERC721 = response.indexOf('1') != -1;
-
-        // console.log({ supportsERC721 });
-      } catch (err) {
-        // console.error('ERR', err);
-      }
-      // TODO store in Durable Object Storage ?
-      erc721Contracts[event.address.toLowerCase()] = supportsERC721;
-
-      if (supportsERC721) {
-        console.log(`!! contract ${event.address} support ERC721`);
-      } else {
-        console.log(`contract ${event.address} does not support ERC721`);
-      }
-
-      if (supportsERC721) {
-        events.push(event);
       }
     }
     return events;
