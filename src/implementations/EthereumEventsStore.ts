@@ -51,7 +51,7 @@ export class EthereumEventsStore extends EthereumEventsDOWithGenericERC721Suppor
             json = undefined;
           }
         }
-        return this.query(json);
+        return this.query(json || params);
       }
       case 'get': {
         if (params['typeName']) {
