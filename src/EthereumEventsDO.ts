@@ -447,6 +447,7 @@ export abstract class EthereumEventsDO {
 
       const lastSync = await this._getLastSync();
       if (!lastSync.enabled) {
+        this._processing = false;
         return 'Not Enabled';
       }
       let fromBlock = 0;
