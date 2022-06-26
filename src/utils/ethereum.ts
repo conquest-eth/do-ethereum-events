@@ -1,6 +1,22 @@
 import { EventFragment, Interface } from '@ethersproject/abi';
 import { getAddress } from '@ethersproject/address';
 
+export type JSONType =
+  | string
+  | number
+  | string[]
+  | number[]
+  | JSONType[]
+  | {
+      [key: string]:
+        | number
+        | string
+        | number[]
+        | string[]
+        | JSONType
+        | JSONType[];
+    };
+
 type LogDescription = {
   readonly name: string;
   readonly signature: string;
@@ -46,6 +62,7 @@ export interface LogEvent extends Log {
   args?: { [key: string | number]: string | number };
   // If parsing the arguments failed, this is the error
   decodeError?: Error;
+  extra?: JSONType;
 }
 
 interface Result extends ReadonlyArray<any> {
@@ -567,5 +584,83 @@ export function createER721Filter(
       }
     }
     return events;
+  };
+}
+
+const tokenURIInterface = new Interface([
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'id',
+        type: 'uint256',
+      },
+    ],
+    name: 'tokenURI',
+    outputs: [
+      {
+        internalType: 'string',
+        name: '',
+        type: 'string',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+]);
+
+export async function tokenURI(
+  endpoint: string,
+  contract: string,
+  tokenID: string,
+  blockHash: string,
+): Promise<string> {
+  const data = tokenURIInterface.encodeFunctionData('tokenURI', [tokenID]);
+  const response = await send<any, string>(endpoint, 'eth_call', [
+    { to: contract, data },
+    { blockHash },
+  ]);
+  // TODO blockHash
+
+  const result: string = tokenURIInterface.decodeFunctionResult(
+    'tokenURI',
+    response,
+  )[0];
+  return result;
+}
+
+export function createER721TokenURIFetcher(
+  endpoint: string,
+): (event: LogEvent) => Promise<JSONType | undefined> {
+  return async (event: LogEvent): Promise<JSONType | undefined> => {
+    if (
+      !event.args ||
+      !event.args['tokenId'] ||
+      !event.args['from'] ||
+      event.args['from'] !== '0x0000000000000000000000000000000000000000'
+    ) {
+      return undefined;
+    }
+
+    try {
+      const uri = await tokenURI(
+        endpoint,
+        event.address,
+        event.args['tokenId'] as string,
+        event.blockHash,
+      );
+      console.log({ uri });
+      if (uri) {
+        return {
+          tokenURIAtMint: uri,
+        };
+      } else {
+        console.log(
+          `no uri for contract: ${event.address} tokenId: ${event.args['tokenId']}`,
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 }

@@ -1,7 +1,8 @@
 import 'isomorphic-fetch';
-import { LastSync } from '../src/EthereumEventsDO';
+import { EventWithId, LastSync } from '../src/EthereumEventsDO';
 import {
   createER721Filter,
+  createER721TokenURIFetcher,
   getBlockNumber,
   LogEventFetcher,
 } from '../src/utils/ethereum';
@@ -37,6 +38,8 @@ async function main() {
   const erc721Filter = createER721Filter(endpoint, {
     skipUnParsedEvents: true,
   });
+
+  const fetchExtraData = createER721TokenURIFetcher(endpoint);
 
   async function fetchAndProcess(
     endpoint: string,
@@ -87,13 +90,18 @@ async function main() {
       console.log(`no new block yet, skip`);
       fs.writeFileSync(
         folder + `/lastSync.json`,
-        JSON.stringify({
-          enabled: true,
-          latestBlock,
-          lastToBlock: toBlock,
-          nextStreamID: streamID,
-          unconfirmedBlocks: [],
-        }),
+        JSON.stringify(
+          {
+            timestamp: Math.floor(Date.now() / 1000),
+            enabled: true,
+            latestBlock,
+            lastToBlock: toBlock,
+            nextStreamID: streamID,
+            unconfirmedBlocks: [],
+          },
+          null,
+          2,
+        ),
       );
       return {
         message: 'no new block yet, skip',
@@ -114,36 +122,51 @@ async function main() {
     if (newEvents.length == 0) {
       fs.writeFileSync(
         folder + `/lastSync.json`,
-        JSON.stringify({
-          enabled: true,
-          latestBlock,
-          lastToBlock: toBlock,
-          nextStreamID: streamID,
-          unconfirmedBlocks: [],
-        }),
+        JSON.stringify(
+          {
+            timestamp: Math.floor(Date.now() / 1000),
+            enabled: true,
+            latestBlock,
+            lastToBlock: toBlock,
+            nextStreamID: streamID,
+            unconfirmedBlocks: [],
+          },
+          null,
+          2,
+        ),
       );
       return { message: 'No Events' };
     }
 
-    const eventStream = [];
+    const eventStream: EventWithId[] = [];
     for (const event of newEvents) {
-      eventStream.push({ ...event, streamID });
+      const extra = await fetchExtraData(event);
+
+      eventStream.push({ ...event, streamID, extra });
       streamID++;
     }
 
     const filename = `events_${lexicographicNumber15(
       lastSync.nextStreamID,
     )}_${lexicographicNumber15(streamID - 1)}.json`;
-    fs.writeFileSync(folder + `/${filename}`, JSON.stringify(eventStream));
+    fs.writeFileSync(
+      folder + `/${filename}`,
+      JSON.stringify(eventStream, null, 2),
+    );
     fs.writeFileSync(
       folder + `/lastSync.json`,
-      JSON.stringify({
-        enabled: true,
-        latestBlock,
-        lastToBlock: toBlock,
-        nextStreamID: streamID,
-        unconfirmedBlocks: [],
-      }),
+      JSON.stringify(
+        {
+          timestamp: Math.floor(Date.now() / 1000),
+          enabled: true,
+          latestBlock,
+          lastToBlock: toBlock,
+          nextStreamID: streamID,
+          unconfirmedBlocks: [],
+        },
+        null,
+        2,
+      ),
     );
     return {};
   }
