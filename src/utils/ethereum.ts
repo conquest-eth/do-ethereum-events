@@ -1,5 +1,6 @@
 import { EventFragment, Interface } from '@ethersproject/abi';
 import { getAddress } from '@ethersproject/address';
+import { InterfaceWithLowerCaseAddresses } from './decoding';
 
 export type JSONType =
   | string
@@ -257,12 +258,12 @@ export class LogEventFetcher extends LogFetcher {
     if (Array.isArray(contractsData)) {
       contracts = contractsData.map((v) => ({
         address: v.address,
-        interface: new Interface(v.eventsABI),
+        interface: new InterfaceWithLowerCaseAddresses(v.eventsABI),
       }));
       contractAddresses = contracts.map((v) => v.address);
       eventABIS = contracts.map((v) => v.interface);
     } else {
-      contracts = new Interface(contractsData.eventsABI);
+      contracts = new InterfaceWithLowerCaseAddresses(contractsData.eventsABI);
       eventABIS = [contracts];
     }
 
@@ -442,7 +443,7 @@ export async function sendWithChecks<U extends any[], T>(
   }
 }
 
-const multicallInterface = new Interface([
+const multicallInterface = new InterfaceWithLowerCaseAddresses([
   {
     inputs: [
       {
@@ -587,7 +588,7 @@ export function createER721Filter(
   };
 }
 
-const tokenURIInterface = new Interface([
+const tokenURIInterface = new InterfaceWithLowerCaseAddresses([
   {
     inputs: [
       {

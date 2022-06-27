@@ -4,6 +4,7 @@ specifiers:
   '@cloudflare/workers-types': ^3.13.0
   '@ethersproject/abi': ^5.6.4
   '@ethersproject/address': ^5.6.1
+  '@ethersproject/bytes': ^5.6.1
   '@types/jest': ^27.5.2
   '@types/node': ^18.0.0
   cross-env: ^7.0.3
@@ -27,6 +28,7 @@ specifiers:
 dependencies:
   '@ethersproject/abi': 5.6.4
   '@ethersproject/address': 5.6.1
+  '@ethersproject/bytes': 5.6.1
 
 devDependencies:
   '@cloudflare/workers-types': 3.13.0
