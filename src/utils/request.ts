@@ -72,8 +72,20 @@ export function parseGETParams(urlAsString: string): {
   const { searchParams } = new URL(urlAsString);
   const params = Array.from(searchParams.entries()).reduce(
     (prev: { [key: string]: string | number }, curr) => {
-      let value: string | number = parseInt(curr[1]);
-      if (isNaN(value)) {
+      let value: string | number;
+      // number need to be prefixed by $
+      // string that start with $ need to be prefixed by $ too
+      if (curr[1].startsWith('$')) {
+        if (curr[1].startsWith('$$')) {
+          value = curr[1].substring(1);
+        } else {
+          const valueStr = curr[1].substring(1);
+          value = parseInt(valueStr);
+          if (isNaN(value)) {
+            value = valueStr;
+          }
+        }
+      } else {
         value = curr[1];
       }
       prev[curr[0]] = value;
