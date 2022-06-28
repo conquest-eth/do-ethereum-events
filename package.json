@@ -1,6 +1,6 @@
 {
   "name": "do-ethereum-events",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
@@ -10,6 +10,7 @@
     "src/**/*",
     "scripts/setup.ts",
     "scripts/query.ts",
+    "scripts/feed.ts",
     "tsconfig.json",
     "README.md"
   ],
