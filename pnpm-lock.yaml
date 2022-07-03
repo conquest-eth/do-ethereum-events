@@ -8,7 +8,7 @@ specifiers:
   '@types/jest': ^27.5.2
   '@types/node': ^18.0.0
   cross-env: ^7.0.3
-  do-json-db: 0.0.4
+  do-json-db: 0.0.7
   dotenv-cli: ^5.1.0
   esbuild: ^0.14.46
   fs-extra: ^10.1.0
@@ -35,7 +35,7 @@ devDependencies:
   '@types/jest': 27.5.2
   '@types/node': 18.0.0
   cross-env: 7.0.3
-  do-json-db: 0.0.4
+  do-json-db: 0.0.7
   dotenv-cli: 5.1.0
   esbuild: 0.14.46
   fs-extra: 10.1.0
@@ -1649,8 +1649,8 @@ packages:
     engines: {node: '>=0.3.1'}
     dev: true
 
-  /do-json-db/0.0.4:
-    resolution: {integrity: sha512-+6J14/LrR+eTAFRrkmGYT1sK6ManFYoW7vX9oE0chymqy2uZvn8yWLNcrNPNhaitFKS0fCIeghPEiPDuxYBZvw==}
+  /do-json-db/0.0.7:
+    resolution: {integrity: sha512-/BPwmp2qiWW2126UWPoeINEhRMgGX7BWnESkna89LxDz04nU6+yrnVpi4IOcBePk08xRL1vZkTG7CglM3Tu3Mw==}
     dependencies:
       ethers: 5.6.9
     transitivePeerDependencies:

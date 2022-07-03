@@ -1,10 +1,11 @@
 {
   "name": "do-ethereum-events",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "files": [
     "dist/**/*",
     "src/**/*",
@@ -20,7 +21,7 @@
     "@types/jest": "^27.5.2",
     "@types/node": "^18.0.0",
     "cross-env": "^7.0.3",
-    "do-json-db": "0.0.4",
+    "do-json-db": "0.0.7",
     "dotenv-cli": "^5.1.0",
     "esbuild": "^0.14.46",
     "fs-extra": "^10.1.0",
