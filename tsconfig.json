@@ -14,7 +14,7 @@
     },
     "composite": true
   },
-  "include": ["src/**/*", "env.d.ts"],
+  "include": ["src/**/*", "env.d.ts", "lib"],
   "ts-node": {
     "files": true,
     "types": ["@cloudflare/workers-types", "@types/node"]

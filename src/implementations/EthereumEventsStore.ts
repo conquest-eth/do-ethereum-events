@@ -5,7 +5,7 @@ import {
 } from '@/utils/request';
 import { EventWithId } from '../EthereumEventsDO';
 import { EthereumEventsDOWithGenericERC721Support } from './EthereumEventsDOWithGenericERC721Support';
-import { JSONDB } from '../../node_modules/do-json-db/src';
+import { JSONDB } from '../../lib/do-json-db/src/index';
 
 export class EthereumEventsStore extends EthereumEventsDOWithGenericERC721Support {
   protected store: JSONDB;

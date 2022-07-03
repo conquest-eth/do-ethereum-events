@@ -8,3 +8,4 @@ scripts/**/.*
 .env*
 !*.default
 logs
+lib/
