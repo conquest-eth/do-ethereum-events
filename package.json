@@ -1,12 +1,13 @@
 {
   "name": "do-ethereum-events",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "files": [
+    "scripts/postinstall.cjs",
     "dist/**/*",
     "lib/**/*",
     "env.d.ts",
@@ -17,16 +18,12 @@
     "tsconfig.json",
     "README.md"
   ],
-  "bin": {
-    "do-ethereum-events-copy-sources": "scripts/install.cjs"
-  },
   "author": "wighawag <wighawag@gmail.com>",
   "devDependencies": {
     "@cloudflare/workers-types": "^3.13.0",
     "@types/jest": "^27.5.2",
     "@types/node": "^18.0.0",
     "cross-env": "^7.0.3",
-    "do-json-db": "0.0.9",
     "dotenv-cli": "^5.1.0",
     "esbuild": "^0.14.46",
     "fs-extra": "^10.1.0",
@@ -50,7 +47,8 @@
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
     "@ethersproject/address": "^5.6.1",
-    "@ethersproject/bytes": "^5.6.1"
+    "@ethersproject/bytes": "^5.6.1",
+    "do-json-db": "^0.0.17"
   },
   "repository": {
     "type": "git",
@@ -60,7 +58,8 @@
     "node": "16.13.1"
   },
   "scripts": {
-    "prepare": "node .setup.cjs && do-json-db-copy-sources lib",
+    "postinstall": "node scripts/postinstall.cjs",
+    "prepare": "node .setup.cjs",
     "build:js": "node build.js",
     "ts-run": "dotenv -- ts-node --experimental-specifier-resolution=node --esm",
     "build": "npm-run-all \"generate {1}\" \"build:js\" --",
@@ -73,5 +72,6 @@
     "test": "npm run build && node --experimental-vm-modules --no-warnings node_modules/jest/bin/jest.js",
     "types:check": "tsc && tsc -p test/tsconfig.json",
     "manual-test": "esbuild test/manual.ts --outfile=dist/manual.mjs && node dist/manual.mjs"
-  }
+  },
+  "typescriptLibraries": "lib"
 }
