@@ -1,6 +1,6 @@
 {
   "name": "do-ethereum-events",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Event Engine For Ethereum",
   "type": "module",
   "module": "./dist/index.mjs",
@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "files": [
     "dist/**/*",
+    "lib/**/*",
     "src/**/*",
     "scripts/setup.ts",
     "scripts/query.ts",
@@ -15,6 +16,9 @@
     "tsconfig.json",
     "README.md"
   ],
+  "bin": {
+    "do-ethereum-events-copy-sources": "scripts/install.cjs"
+  },
   "author": "wighawag <wighawag@gmail.com>",
   "devDependencies": {
     "@cloudflare/workers-types": "^3.13.0",
