@@ -23,6 +23,5 @@ const result = template({
   devMode: 'true', // TODO ?
   environment,
   ETHEREUM_NODE: process.env.ETHEREUM_NODE,
-  DATA_DOG_API_KEY: process.env.DATA_DOG_API_KEY,
 });
 fs.writeFileSync('./wrangler.toml', result);
