@@ -10,8 +10,8 @@ const path = require('path');
 //   error(message) {
 //     logs += `\nERRROR: ` + message;
 //     fs.writeFileSync('log.txt', logs);
-//   }
-// }
+//   },
+// };
 
 const root = path.parse(process.cwd()).root;
 
