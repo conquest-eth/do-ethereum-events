@@ -166,6 +166,21 @@ export abstract class EthereumEventsDO {
     });
   }
 
+  async setAlarmIfStuck(): Promise<Response> {
+    if (EthereumEventsDO.alarm) {
+      const now = Date.now();
+      const existingAlarm = await this.state.storage.getAlarm();
+      if (!existingAlarm || existingAlarm < now - 30 * 1000) {
+        await this.state.storage.setAlarm(now + 1000);
+        console.log('Alarm Set to be triggered in 1 second');
+        return new Response('Alarm Set to be triggered in 1 second');
+      }
+      console.log(`Giving time for the alarm : ${existingAlarm}`);
+      return new Response(`Giving time for the alarm : ${existingAlarm}`);
+    }
+    return new Response('Alarm Disabled');
+  }
+
   async triggerAlarm(): Promise<Response> {
     if (EthereumEventsDO.alarm) {
       // let currentAlarm = await this.state.storage.getAlarm();
@@ -334,7 +349,7 @@ export abstract class EthereumEventsDO {
       status: {
         lastSync,
         alarm,
-        BUILD_VERSION: (globalThis as any).process.env.BUILD_VERSION,
+        // BUILD_VERSION: (globalThis as any).process.env.BUILD_VERSION,
       },
       success: true,
     });
@@ -386,6 +401,8 @@ export abstract class EthereumEventsDO {
         return this.getEvents(params);
       case 'trigger-alarm':
         return this.triggerAlarm();
+      case 'set-alarm-if-stuck':
+        return this.setAlarmIfStuck();
       case 'status':
         return this.getStatus();
       default: {
@@ -401,12 +418,17 @@ export abstract class EthereumEventsDO {
       const timestampInMilliseconds = Date.now();
       if (!EthereumEventsDO.alarm.individualCall) {
         if (EthereumEventsDO.alarm.interval) {
+          const maxAlarmInterval = 60;
+          await this._setAlarmDelta(maxAlarmInterval * SECONDS); // worst case, we come back in 60 seconds
           try {
             await spaceOutCallOptimisitcaly(
               async () => {
                 await this._fetchAndProcess();
               },
-              { interval: EthereumEventsDO.alarm.interval, duration: 60 },
+              {
+                interval: EthereumEventsDO.alarm.interval,
+                duration: maxAlarmInterval,
+              },
             );
           } finally {
             await this._setAlarmDelta(
@@ -418,6 +440,9 @@ export abstract class EthereumEventsDO {
           await this._fetchAndProcess();
         }
       } else {
+        await this._setAlarmDelta(
+          (EthereumEventsDO.alarm.interval || 30) * SECONDS,
+        );
         await this._fetchAndProcess();
         await this._setAlarmDelta(
           (EthereumEventsDO.alarm.interval || 30) * SECONDS,
