@@ -627,6 +627,16 @@ export abstract class EthereumEventsDO {
 
     // new events and new unconfirmed blocks
     const newUnconfirmedBlocks: EventBlock[] = [];
+
+    // re-add unconfirmed blocks that might get reorg later still
+    for (const unconfirmedBlock of unconfirmedBlocks) {
+      if (unconfirmedBlock.number < startingBlockForNewEvent) {
+        if (latestBlock - unconfirmedBlock.number <= this.finality) {
+          newUnconfirmedBlocks.push(unconfirmedBlock);
+        }
+      }
+    }
+
     for (const block of eventsGroupedPerBlock) {
       if (block.events.length > 0 && block.number >= startingBlockForNewEvent) {
         const startStreamID = nextStreamID;
@@ -651,7 +661,7 @@ export abstract class EthereumEventsDO {
         enabled,
         latestBlock,
         lastToBlock,
-        unconfirmedBlocks,
+        unconfirmedBlocks: newUnconfirmedBlocks,
         nextStreamID,
       },
     };
